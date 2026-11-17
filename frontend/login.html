@@ -1,0 +1,182 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | TrabahoTa!</title>
+    <link rel="stylesheet" href="css/style.css">
+
+    <style>
+        .auth-container {
+            max-width: 440px;
+            margin: 75px auto;
+            padding: 38px;
+            background: white;
+            border-radius: 14px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+        }
+
+        .auth-container h2 {
+            text-align: center;
+            color: #123b73;
+            margin-bottom: 8px;
+        }
+
+        .auth-subtitle {
+            text-align: center;
+            color: #667085;
+            margin-bottom: 28px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 13px;
+            border: 1px solid #d0d5dd;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+
+        .form-group input:focus {
+            outline: 2px solid #2563a6;
+            outline-offset: 1px;
+        }
+
+        .auth-button {
+            width: 100%;
+            padding: 13px;
+            border: none;
+            border-radius: 8px;
+            background: #123b73;
+            color: white;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .auth-button:hover {
+            background: #09264d;
+        }
+
+        .auth-button:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        .form-message {
+            display: none;
+            margin-top: 15px;
+            padding: 14px;
+            border-radius: 9px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .form-message.success {
+            display: block;
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #86efac;
+        }
+
+        .form-message.error {
+            display: block;
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .auth-footer {
+            text-align: center;
+            margin-top: 22px;
+        }
+
+        .auth-footer a {
+            color: #123b73;
+            font-weight: 600;
+        }
+
+        @media (max-width: 520px) {
+            .auth-container {
+                margin: 30px 15px;
+                padding: 25px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <nav>
+        <h1>TrabahoTa!</h1>
+        <div>
+            <a href="index.html">Home</a>
+            <a href="login.html">Login</a>
+            <a href="register.html">Register</a>
+        </div>
+    </nav>
+</header>
+
+<main>
+    <section class="auth-container">
+        <h2>Welcome Back!</h2>
+        <p class="auth-subtitle">Login to TrabahoTa!</p>
+
+        <form id="login-form">
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input
+                    type="email"
+                    id="email"
+                    autocomplete="email"
+                    required
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input
+                    type="password"
+                    id="password"
+                    autocomplete="current-password"
+                    required
+                >
+            </div>
+
+            <button type="submit"
+                    class="auth-button"
+                    id="login-button">
+                Login
+            </button>
+
+            <div id="message"
+                 class="form-message"
+                 role="status"
+                 aria-live="polite"></div>
+        </form>
+
+        <p class="auth-footer">
+            Don't have an account?
+            <a href="register.html">Register here</a>
+        </p>
+    </section>
+</main>
+
+<footer>
+    <p>TrabahoTa! | SDG 8: Decent Work and Economic Growth</p>
+</footer>
+
+<script src="js/login.js"></script>
+</body>
+</html>

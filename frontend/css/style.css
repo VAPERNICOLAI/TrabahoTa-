@@ -1,0 +1,198 @@
+
+/* TRABAHOTA! — MAIN STYLESHEET */
+
+:root {
+    --primary: #123b73;
+    --primary-dark: #09264d;
+    --accent: #f5b942;
+    --background: #f4f7fb;
+    --text: #1d2939;
+    --muted: #667085;
+    --white: #ffffff;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: var(--background);
+    color: var(--text);
+    line-height: 1.6;
+}
+
+/* NAVIGATION */
+
+header {
+    background: var(--white);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+nav {
+    max-width: 1150px;
+    margin: auto;
+    padding: 20px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+}
+
+nav h1 {
+    color: var(--primary);
+    font-size: 28px;
+    font-weight: 800;
+}
+
+nav div {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 25px;
+}
+
+nav a {
+    text-decoration: none;
+    color: var(--text);
+    font-weight: 600;
+    transition: color 0.2s ease;
+}
+
+nav a:hover {
+    color: var(--primary);
+}
+
+/* HERO SECTION */
+
+.hero {
+    min-height: 430px;
+    padding: 90px 24px;
+    background: linear-gradient(135deg, #123b73, #2563a6);
+    color: var(--white);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.hero h2 {
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 800;
+    margin-bottom: 15px;
+}
+
+.hero p {
+    max-width: 650px;
+    margin-bottom: 30px;
+    font-size: 17px;
+    color: #e5edf8;
+}
+
+.hero a {
+    display: inline-block;
+    padding: 13px 30px;
+    background: var(--accent);
+    color: var(--primary-dark);
+    text-decoration: none;
+    font-weight: 700;
+    border-radius: 9px;
+    transition: transform 0.2s, background 0.2s;
+}
+
+.hero a:hover {
+    background: #ffd06a;
+    transform: translateY(-2px);
+}
+
+/* OPPORTUNITIES SECTION */
+
+#opportunities {
+    max-width: 1150px;
+    min-height: 300px;
+    margin: auto;
+    padding: 65px 24px;
+}
+
+#opportunities h2 {
+    font-size: 30px;
+    margin-bottom: 25px;
+    color: var(--primary-dark);
+}
+
+#opportunity-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+}
+
+#opportunity-list p {
+    color: var(--muted);
+}
+
+.opportunity-card {
+    background: var(--white);
+    padding: 25px;
+    border-radius: 12px;
+    border: 1px solid #e4e7ec;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+}
+
+.opportunity-card h3 {
+    color: var(--primary);
+    margin-bottom: 10px;
+}
+
+.opportunity-card p {
+    margin-bottom: 8px;
+}
+
+.opportunity-card .type {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 5px 12px;
+    background: #e8f1ff;
+    color: var(--primary);
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+/* FOOTER */
+
+footer {
+    background: var(--primary-dark);
+    color: #dce6f3;
+    text-align: center;
+    padding: 25px;
+    font-size: 14px;
+}
+
+/* RESPONSIVE DESIGN */
+
+@media (max-width: 650px) {
+    nav {
+        flex-direction: column;
+    }
+
+    nav div {
+        justify-content: center;
+        gap: 15px;
+    }
+
+    .hero {
+        min-height: 360px;
+        padding: 65px 20px;
+    }
+
+    #opportunities {
+        padding: 45px 20px;
+    }
+}

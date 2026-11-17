@@ -2,12 +2,23 @@
 import sqlite3
 
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from database import init_db, get_db_connection
 
 
 app = Flask(__name__)
+
+# Allow frontend requests from VS Code Live Server
+CORS(app, resources={
+    r"/api/*": {
+        "origins": [
+            "http://127.0.0.1:5500",
+            "http://localhost:5500"
+        ]
+    }
+})
 
 # Initialize SQLite database
 init_db()
@@ -231,3 +242,4 @@ def login():
 # START FLASK SERVER
 if __name__ == "__main__":
     app.run(debug=True)
+
