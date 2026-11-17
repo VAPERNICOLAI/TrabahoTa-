@@ -1,0 +1,259 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Dashboard | TrabahoTa!</title>
+    <link rel="stylesheet" href="css/style.css">
+
+    <style>
+        body {
+            margin: 0;
+            background: #f4f7fb;
+            font-family: Arial, sans-serif;
+        }
+
+        .company-nav {
+            background: #173b70;
+            padding: 18px 6%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .company-logo {
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .company-links {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .company-links a {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .company-links a:hover {
+            text-decoration: underline;
+        }
+
+        .logout-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 11px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .logout-btn:hover {
+            background: #b52a37;
+        }
+
+        .company-dashboard {
+            max-width: 1100px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .welcome-card {
+            background: #173b70;
+            color: white;
+            padding: 35px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+        }
+
+        .welcome-card h1 {
+            color: white;
+            margin-bottom: 12px;
+        }
+
+        .welcome-card p {
+            color: #e5ecf7;
+            margin: 8px 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 3px 15px rgba(0,0,0,0.06);
+        }
+
+        .stat-card h3 {
+            font-size: 15px;
+            color: #667085;
+            margin-bottom: 12px;
+        }
+
+        .stat-card p {
+            font-size: 30px;
+            font-weight: bold;
+            color: #173b70;
+            margin: 0;
+        }
+
+        .dashboard-section {
+            background: white;
+            padding: 28px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 3px 15px rgba(0,0,0,0.06);
+        }
+
+        .dashboard-section h2 {
+            color: #173b70;
+            margin-bottom: 18px;
+        }
+
+        .primary-btn {
+            background: #173b70;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .primary-btn:hover {
+            background: #24549b;
+        }
+
+        .primary-btn:disabled {
+            background: #9aa8bc;
+            cursor: not-allowed;
+        }
+
+        .empty-message {
+            color: #667085;
+        }
+
+        .status-message {
+            margin-top: 12px;
+            color: #667085;
+        }
+
+        .company-footer {
+            text-align: center;
+            padding: 25px;
+            color: #667085;
+        }
+
+        @media (max-width: 700px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .company-nav {
+                flex-direction: column;
+            }
+
+            .company-links {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .welcome-card {
+                padding: 25px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="company-nav">
+        <div class="company-logo">TrabahoTa!</div>
+
+        <nav class="company-links">
+            <a href="index.html">Home</a>
+            <a href="company-dashboard.html">Dashboard</a>
+            <button id="logout-btn" class="logout-btn">Logout</button>
+        </nav>
+    </header>
+
+    <main class="company-dashboard">
+
+        <section class="welcome-card">
+            <h1 id="welcome-message">Loading company account...</h1>
+            <p>From Tambay to Trabaho</p>
+            <p>Manage opportunities for the Xavier University community.</p>
+        </section>
+
+        <section class="stats-grid">
+            <div class="stat-card">
+                <h3>My Job Postings</h3>
+                <p id="postings-count">—</p>
+            </div>
+
+            <div class="stat-card">
+                <h3>Applications Received</h3>
+                <p id="applications-count">—</p>
+            </div>
+
+            <div class="stat-card">
+                <h3>Active Opportunities</h3>
+                <p id="active-count">—</p>
+            </div>
+        </section>
+
+        <section class="dashboard-section">
+            <h2>Manage Opportunities</h2>
+            <p class="empty-message">
+                Create, edit, and manage your job, internship, and OJT postings.
+            </p>
+
+            <button class="primary-btn" id="create-posting-btn" disabled>
+                Create New Opportunity (Coming Soon)
+            </button>
+
+            <p id="posting-status" class="status-message">
+                Opportunity management API is not yet implemented.
+            </p>
+        </section>
+
+        <section class="dashboard-section">
+            <h2>My Job Postings</h2>
+            <div id="postings-list">
+                <p class="empty-message">
+                    Company posting management will be available soon.
+                </p>
+            </div>
+        </section>
+
+        <section class="dashboard-section">
+            <h2>Applications Received</h2>
+            <div id="received-applications">
+                <p class="empty-message">
+                    Applicant review will be available soon.
+                </p>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="company-footer">
+        TrabahoTa! | SDG 8: Decent Work and Economic Growth
+    </footer>
+
+    <script src="js/company-dashboard.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,240 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Student Dashboard | TrabahoTa!</title>
+
+    <link rel="stylesheet" href="css/style.css">
+
+    <style>
+        body {
+            margin: 0;
+            background: #f4f7fb;
+            font-family: Arial, sans-serif;
+        }
+
+        .dashboard-nav {
+            background: #173b70;
+            padding: 18px 6%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .dashboard-logo {
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .dashboard-links {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .dashboard-links a {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .dashboard-links a:hover {
+            text-decoration: underline;
+        }
+
+        .logout-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 11px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .logout-btn:hover {
+            background: #b52a37;
+        }
+
+        .student-dashboard {
+            max-width: 1100px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .welcome-card {
+            background: #173b70;
+            color: white;
+            padding: 35px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+        }
+
+        .welcome-card h1 {
+            color: white;
+            margin-bottom: 12px;
+        }
+
+        .welcome-card p {
+            color: #e5ecf7;
+            margin: 8px 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 3px 15px rgba(0,0,0,0.06);
+        }
+
+        .stat-card h3 {
+            font-size: 15px;
+            color: #667085;
+            margin-bottom: 12px;
+        }
+
+        .stat-card p {
+            font-size: 30px;
+            font-weight: bold;
+            color: #173b70;
+            margin: 0;
+        }
+
+        .dashboard-section {
+            background: white;
+            padding: 28px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 3px 15px rgba(0,0,0,0.06);
+        }
+
+        .dashboard-section h2 {
+            color: #173b70;
+            margin-bottom: 18px;
+        }
+
+        .empty-message {
+            color: #667085;
+        }
+
+        .opportunity-card {
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+
+        .opportunity-card h3 {
+            color: #173b70;
+            margin-bottom: 10px;
+        }
+
+        .opportunity-card p {
+            margin: 7px 0;
+        }
+
+        .dashboard-footer {
+            text-align: center;
+            padding: 25px;
+            color: #667085;
+        }
+
+        @media (max-width: 700px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-nav {
+                flex-direction: column;
+            }
+
+            .welcome-card {
+                padding: 25px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="dashboard-nav">
+        <div class="dashboard-logo">TrabahoTa!</div>
+
+        <nav class="dashboard-links">
+            <a href="index.html">Home</a>
+            <a href="student-dashboard.html">Dashboard</a>
+
+            <button id="logout-btn" class="logout-btn">
+                Logout
+            </button>
+        </nav>
+    </header>
+
+    <main class="student-dashboard">
+
+        <section class="welcome-card">
+            <h1 id="welcome-message">Loading your account...</h1>
+            <p>From Tambay to Trabaho</p>
+            <p>Discover your next opportunity at Xavier University.</p>
+        </section>
+
+        <section class="stats-grid">
+
+            <div class="stat-card">
+                <h3>Available Opportunities</h3>
+                <p id="opportunity-count">—</p>
+            </div>
+
+            <div class="stat-card">
+                <h3>My Applications</h3>
+                <p id="application-count">—</p>
+            </div>
+
+            <div class="stat-card">
+                <h3>Pending Applications</h3>
+                <p id="pending-count">—</p>
+            </div>
+
+        </section>
+
+        <section class="dashboard-section">
+            <h2>Available Jobs, Internships & OJT</h2>
+
+            <div id="opportunities-list">
+                <p class="empty-message">
+                    Loading opportunities...
+                </p>
+            </div>
+        </section>
+
+        <section class="dashboard-section">
+            <h2>My Applications</h2>
+
+            <div id="applications-list">
+                <p class="empty-message">
+                    Application tracking is coming soon.
+                </p>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="dashboard-footer">
+        TrabahoTa! | SDG 8: Decent Work and Economic Growth
+    </footer>
+
+    <script src="js/student-dashboard.js"></script>
+
+</body>
+</html>

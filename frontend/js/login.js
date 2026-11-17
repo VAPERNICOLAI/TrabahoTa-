@@ -2,14 +2,12 @@
 const LOGIN_API = "http://127.0.0.1:5000/api/auth/login";
 
 document.addEventListener("DOMContentLoaded", function () {
-    console.log("TrabahoTa login.js loaded successfully!");
-
     const form = document.getElementById("login-form");
     const button = document.getElementById("login-button");
     const message = document.getElementById("message");
 
     if (!form || !button || !message) {
-        console.error("Login form elements are missing!");
+        console.error("Login form elements are missing.");
         return;
     }
 
@@ -20,8 +18,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     form.addEventListener("submit", async function (event) {
         event.preventDefault();
-
-        console.log("Login button clicked!");
 
         message.textContent = "";
         message.className = "form-message";
@@ -45,31 +41,40 @@ document.addEventListener("DOMContentLoaded", function () {
                 })
             });
 
-            console.log("Login API status:", response.status);
-
             const result = await response.json();
 
             if (!response.ok) {
-                throw new Error(
-                    result.error || "Login failed"
-                );
+                throw new Error(result.error || "Login failed.");
+            }
+
+            if (!result.user) {
+                throw new Error("User information was not returned.");
             }
 
             showMessage(
-                "✓ Login Successful! Welcome back, " +
+                "Login successful! Welcome, " +
                 result.user.full_name + "!",
                 "success"
             );
 
             document.getElementById("password").value = "";
 
+            if (result.user.role === "student") {
+                window.location.replace("student-dashboard.html");
+
+            } else if (result.user.role === "company") {
+                window.location.replace("company-dashboard.html");
+
+            } else {
+                showMessage(
+                    "Login successful, but the account role is unsupported.",
+                    "error"
+                );
+            }
+
         } catch (error) {
             console.error("Login error:", error);
-
-            showMessage(
-                "✕ " + error.message,
-                "error"
-            );
+            showMessage(error.message, "error");
 
         } finally {
             button.disabled = false;
