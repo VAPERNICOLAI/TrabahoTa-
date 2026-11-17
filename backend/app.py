@@ -17,17 +17,36 @@ from database import init_db, get_db_connection
 
 app = Flask(__name__)
 
-app.config["SECRET_KEY"] = os.environ.get(
-    "FLASK_SECRET_KEY",
-    "dev-only-change-this-before-deployment"
+# =====================================================
+# FLASK SECURITY CONFIGURATION
+# =====================================================
+
+IS_PRODUCTION = (
+    os.environ.get("FLASK_ENV", "development").lower()
+    == "production"
+)
+
+SECRET_KEY = os.environ.get("FLASK_SECRET_KEY")
+
+if IS_PRODUCTION and not SECRET_KEY:
+    raise RuntimeError(
+        "FLASK_SECRET_KEY is required in production"
+    )
+
+app.config["SECRET_KEY"] = (
+    SECRET_KEY or "dev-only-change-this-before-deployment"
 )
 
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
-app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["SESSION_COOKIE_SECURE"] = (
-    os.environ.get("FLASK_COOKIE_SECURE", "false").lower() == "true"
+app.config["SESSION_COOKIE_SAMESITE"] = (
+    "None" if IS_PRODUCTION else "Lax"
 )
+app.config["SESSION_COOKIE_SECURE"] = IS_PRODUCTION
+
+# =====================================================
+# CORS CONFIGURATION
+# =====================================================
 
 CORS(
     app,
@@ -35,7 +54,8 @@ CORS(
         r"/api/*": {
             "origins": [
                 "http://127.0.0.1:5500",
-                "http://localhost:5500"
+                "http://localhost:5500",
+                "https://trabahota.netlify.app"
             ]
         }
     },
@@ -978,8 +998,6 @@ def get_student_applications():
 # START DEVELOPMENT SERVER
 # =====================================================
 
-if __name__ == "__main__":
-    app.run(debug=True, use_reloader=False)
 # =====================================================
 # API 16: COMPANY VIEW APPLICATIONS
 # =====================================================
@@ -1110,3 +1128,10 @@ def update_application_status(application_id):
 
     finally:
         connection.close()
+
+        # =====================================================
+# START DEVELOPMENT SERVER
+# =====================================================
+
+if __name__ == "__main__":
+    app.run(debug=True, use_reloader=False)
