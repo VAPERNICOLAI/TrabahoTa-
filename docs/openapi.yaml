@@ -1,0 +1,1500 @@
+openapi: 3.0.3
+info:
+  title: TrabahoTa! REST API
+  version: 1.1.0
+  description: 'API design for TrabahoTa!: From Tambay to Trabaho. An academic web application connecting Xavier
+    University student applicants with participating companies and organizations. This specification documents only
+    the project-owned Flask API, not third-party services. Company actions are restricted to owned resources; student
+    applications are private to authorized users. Passwords must be securely hashed and never returned by API responses.
+    Eligibility, application state changes, withdrawal, and soft-deletion rules are defined below. Administrator
+    verification is an internal review step; no administrator endpoints are specified in this version. Email verification
+    and company approval are required design rules; the administrative approval workflow is manual in this checkpoint
+    and must be implemented before production use.'
+servers:
+- url: http://localhost:5000/api
+  description: Local Flask development server
+tags:
+- name: Authentication
+  description: Student and company sign-up and sign-in
+- name: Profiles
+  description: Account profile and private student qualifications
+- name: Companies
+  description: Company profiles
+- name: Opportunities
+  description: Job, OJT, internship and training listings
+- name: Applications
+  description: Student applications and review statuses
+paths:
+  /auth/register:
+    post:
+      tags:
+      - Authentication
+      summary: Register a student or company account
+      operationId: register_a_student_or_company_account
+      responses:
+        '201':
+          description: Account created with verification_status=pending; posting/applying privileges unavailable
+            until verified/approved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      description: Student accounts require an @my.xu.edu.ph email and verification of email ownership before applying.
+        Company accounts require organizational email verification, a company profile, and manual administrator
+        review before posting. Registration never grants immediate company posting permission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Registration'
+  /auth/login:
+    post:
+      tags:
+      - Authentication
+      summary: Log in and receive an access token
+      operationId: log_in_and_receive_an_access_token
+      responses:
+        '200':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Credentials'
+  /profile:
+    get:
+      tags:
+      - Profiles
+      summary: Get the authenticated user profile
+      operationId: get_the_authenticated_user_profile
+      responses:
+        '200':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - bearerAuth: []
+      description: Authenticated account; verification_status indicates eligibility. Student qualifications are
+        retrieved through /students/me.
+    patch:
+      tags:
+      - Profiles
+      summary: Update the authenticated user profile
+      operationId: update_the_authenticated_user_profile
+      responses:
+        '200':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdate'
+      security:
+      - bearerAuth: []
+  /companies:
+    post:
+      tags:
+      - Companies
+      summary: Create a company profile
+      operationId: create_a_company_profile
+      responses:
+        '201':
+          description: Company profile created, verification_status=pending; an administrator must approve it before
+            posting.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      description: Company account creates its own company profile; company remains pending until administrator
+        approval. Posting is prohibited while pending, rejected, or suspended.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyCreate'
+      security:
+      - bearerAuth: []
+  /companies/{company_id}:
+    get:
+      tags:
+      - Companies
+      summary: Get a company profile
+      operationId: get_a_company_profile
+      responses:
+        '200':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      parameters:
+      - name: company_id
+        in: path
+        required: true
+        description: Unique company id
+        schema:
+          type: integer
+          minimum: 1
+        example: 12
+    patch:
+      tags:
+      - Companies
+      summary: Update an owned company profile
+      operationId: update_an_owned_company_profile
+      responses:
+        '200':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyUpdate'
+      parameters:
+      - name: company_id
+        in: path
+        required: true
+        description: Unique company id
+        schema:
+          type: integer
+          minimum: 1
+        example: 12
+      security:
+      - bearerAuth: []
+      description: Owner can edit own company profile, but cannot self-approve verification_status. Approval is
+        set only by an authorized administrator after manual organizational identity review.
+    delete:
+      tags:
+      - Companies
+      summary: Delete an owned company profile
+      operationId: delete_an_owned_company_profile
+      responses:
+        '200':
+          description: Company and its opportunities archived; historical applications preserved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      parameters:
+      - name: company_id
+        in: path
+        required: true
+        description: Unique company id
+        schema:
+          type: integer
+          minimum: 1
+        example: 12
+      security:
+      - bearerAuth: []
+      description: 'Soft-delete owned company: set deleted_at, disable login posting privileges, archive all its
+        opportunities (set deleted_at and close status). Existing applications and their decisions are retained
+        for history and remain accessible to their applicants; company can no longer manage them. No cascading hard
+        deletes.'
+  /opportunities:
+    get:
+      tags:
+      - Opportunities
+      summary: List and search opportunities
+      operationId: list_and_search_opportunities
+      responses:
+        '200':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityList'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      parameters:
+      - name: search
+        in: query
+        required: false
+        description: Search opportunity titles and descriptions
+        schema:
+          type: string
+        example: IT intern
+      - name: opportunity_type
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - internship
+          - ojt
+          - part_time
+          - training
+          - entry_level
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - open
+          - closed
+      description: Public search returns only active, non-archived opportunities from approved companies; closed
+        opportunities may be included when explicitly filtering by status. Archived records are never publicly listed.
+    post:
+      tags:
+      - Opportunities
+      summary: Create a job or training opportunity
+      operationId: create_a_job_or_training_opportunity
+      responses:
+        '201':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Opportunity'
+              example:
+                opportunity_id: 12
+                company_id: 3
+                title: IT Intern
+                opportunity_type: internship
+                description: Assist the IT support team.
+                location: Cagayan de Oro City
+                deadline: '2026-12-15'
+                status: open
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Company account is not approved or has no posting permission
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: COMPANY_NOT_APPROVED
+                message: Company approval is required before posting.
+      description: Only an authenticated company account with verification_status=approved and active company profile
+        may create an opportunity. Company ID is taken from authenticated account, not trusted from request body.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpportunityCreate'
+            example:
+              title: IT Intern
+              opportunity_type: internship
+              description: Assist the IT support team.
+              location: Cagayan de Oro City
+              deadline: '2026-12-15'
+      security:
+      - bearerAuth: []
+  /opportunities/{opportunity_id}:
+    get:
+      tags:
+      - Opportunities
+      summary: Get an opportunity by ID
+      operationId: get_an_opportunity_by_id
+      responses:
+        '200':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Opportunity'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      parameters:
+      - name: opportunity_id
+        in: path
+        required: true
+        description: Unique opportunity id
+        schema:
+          type: integer
+          minimum: 1
+        example: 12
+    put:
+      tags:
+      - Opportunities
+      summary: Update an owned opportunity
+      operationId: update_an_owned_opportunity
+      responses:
+        '200':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Opportunity'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Opportunity archived or update conflicts with current state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: RESOURCE_ARCHIVED
+                message: Archived opportunities cannot be modified.
+      description: Only the approved owning company may update an active opportunity. Changing status to closed
+        prevents new applications; existing application history remains unchanged. Archived opportunities cannot
+        be edited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpportunityCreate'
+      parameters:
+      - name: opportunity_id
+        in: path
+        required: true
+        description: Unique opportunity id
+        schema:
+          type: integer
+          minimum: 1
+        example: 12
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Opportunities
+      summary: Delete an owned opportunity
+      operationId: delete_an_owned_opportunity
+      responses:
+        '200':
+          description: Opportunity archived; existing applications retained.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      description: 'Soft-delete owned opportunity: set deleted_at and status=closed; remove from public listings
+        and block new applications. Preserve every existing application and its status for student history. No cascading
+        hard delete.'
+      parameters:
+      - name: opportunity_id
+        in: path
+        required: true
+        description: Unique opportunity id
+        schema:
+          type: integer
+          minimum: 1
+        example: 12
+      security:
+      - bearerAuth: []
+    patch:
+      tags:
+      - Opportunities
+      summary: Partially update an owned opportunity
+      operationId: partially_update_an_owned_opportunity
+      responses:
+        '200':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Opportunity'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Opportunity archived or update conflicts with current state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: RESOURCE_ARCHIVED
+                message: Archived opportunities cannot be modified.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpportunityUpdate'
+      parameters:
+      - name: opportunity_id
+        in: path
+        required: true
+        description: Unique opportunity id
+        schema:
+          type: integer
+          minimum: 1
+        example: 12
+      security:
+      - bearerAuth: []
+      description: Only the approved owning company may update an active opportunity. Changing status to closed
+        prevents new applications; existing application history remains unchanged. Archived opportunities cannot
+        be edited.
+  /applications:
+    get:
+      tags:
+      - Applications
+      summary: List applications visible to the signed-in user
+      operationId: list_applications_visible_to_the_signed_in_user
+      responses:
+        '200':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationList'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      description: Student sees only their own applications. Company sees only applications for opportunities it
+        owns; each returned application includes applicant name, verified XU email, course, skills, qualifications
+        summary, and optional résumé URL. Archived opportunities do not erase application history. Company must
+        be active and approved to access applicant details.
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - submitted
+          - under_review
+          - interview
+          - accepted
+          - rejected
+          - withdrawn
+      - name: opportunity_id
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - Applications
+      summary: Submit an application for an opportunity
+      operationId: submit_an_application_for_an_opportunity
+      responses:
+        '201':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+              example:
+                application_id: 25
+                user_id: 5
+                opportunity_id: 12
+                date_applied: '2026-11-13T10:00:00+08:00'
+                status: submitted
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not an XU-verified student, or insufficient permissions (NOT_VERIFIED).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Opportunity not found or archived.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 'DUPLICATE_APPLICATION if student already applied (even if withdrawn); OPPORTUNITY_CLOSED
+            if listing closed; COMPANY_NOT_APPROVED if company no longer authorized. Example: {"error":"OPPORTUNITY_CLOSED","message":"This
+            opportunity is closed."}'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: DUPLICATE_APPLICATION
+                message: You have already applied to this opportunity.
+        '422':
+          description: Application deadline has passed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: DEADLINE_PASSED
+                message: This opportunity no longer accepts applications after its deadline.
+      description: 'Only verified XU student accounts can apply. Opportunity must exist, not be archived, have status=open,
+        belong to an approved active company, and have deadline on or after today (Asia/Manila). One application
+        per student per opportunity, including withdrawn records: withdrawal does not permit reapplication. Student
+        ID is inferred from token.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationCreate'
+            example:
+              opportunity_id: 12
+      security:
+      - bearerAuth: []
+  /applications/{application_id}:
+    get:
+      tags:
+      - Applications
+      summary: Get an application by ID
+      operationId: get_an_application_by_id
+      responses:
+        '200':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+              example:
+                application_id: 25
+                user_id: 5
+                opportunity_id: 12
+                date_applied: '2026-11-13T10:00:00+08:00'
+                status: under_review
+                withdrawn_at: null
+                applicant:
+                  user_id: 5
+                  name: Alex Student
+                  email: alex@my.xu.edu.ph
+                  course: BS Information Technology
+                  year_level: 4
+                  skills:
+                  - Python
+                  - SQL
+                  qualifications_summary: Completed web development training.
+                  resume_url: https://files.example.edu/resumes/alex.pdf
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      parameters:
+      - name: application_id
+        in: path
+        required: true
+        description: Unique application id
+        schema:
+          type: integer
+          minimum: 1
+        example: 12
+      security:
+      - bearerAuth: []
+      description: Student may retrieve only their own application; approved active company may retrieve only applications
+        to opportunities it owns. Applicant qualifications included for the owning company.
+    patch:
+      tags:
+      - Applications
+      summary: Update the status of an application
+      operationId: update_the_status_of_an_application
+      responses:
+        '200':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Invalid application status transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: INVALID_STATUS_TRANSITION
+                message: Accepted or rejected decisions cannot be changed.
+      description: 'Approved owning company only. Allowed transitions: submitted -> under_review; under_review ->
+        interview, accepted, rejected; interview -> accepted, rejected. accepted, rejected and withdrawn are terminal
+        and cannot be changed by normal API. Students cannot change review statuses.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationUpdate'
+            example:
+              status: under_review
+      parameters:
+      - name: application_id
+        in: path
+        required: true
+        description: Unique application id
+        schema:
+          type: integer
+          minimum: 1
+        example: 12
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Applications
+      summary: Withdraw an application while preserving its history
+      operationId: withdraw_an_application
+      responses:
+        '200':
+          description: Application marked withdrawn; history preserved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Withdrawal no longer allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: WITHDRAWAL_NOT_ALLOWED
+                message: Applications in interview or final status cannot be withdrawn.
+      description: Student owner only; logical withdrawal, not hard deletion. Allowed only when status is submitted
+        or under_review. Sets status=withdrawn and withdrawn_at timestamp; retains row and previous application
+        details. No reapplication to the same opportunity. Interview, accepted, rejected, and already withdrawn
+        applications cannot be withdrawn.
+      parameters:
+      - name: application_id
+        in: path
+        required: true
+        description: Unique application id
+        schema:
+          type: integer
+          minimum: 1
+        example: 12
+      security:
+      - bearerAuth: []
+  /companies/me:
+    get:
+      tags:
+      - Companies
+      summary: Retrieve the authenticated company’s own profile
+      operationId: getMyCompany
+      description: Uses the company account bearer token to find its owned company profile; no company ID needed.
+        A student account is forbidden.
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Owned company profile, including verification status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Account is not a company
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No active company profile found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /students/me:
+    get:
+      tags:
+      - Profiles
+      summary: Get the authenticated student qualifications profile
+      operationId: getMyStudentProfile
+      description: Only student owner may retrieve their own qualifications and optional résumé URL.
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Student profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProfile'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Student role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      tags:
+      - Profiles
+      summary: Update student qualifications and résumé URL
+      operationId: updateMyStudentProfile
+      description: Student may update own course, year level, skills, qualifications summary and optional résumé
+        URL. Does not change verified email or role.
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentProfileUpdate'
+            example:
+              course: BS Information Technology
+              year_level: 4
+              skills:
+              - Python
+              - SQL
+              qualifications_summary: Completed networking and web development coursework.
+              resume_url: https://files.example.edu/resumes/alex.pdf
+      responses:
+        '200':
+          description: Updated student profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProfile'
+        '400':
+          description: Invalid profile data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Student role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      required:
+      - error
+      - message
+      properties:
+        error:
+          type: string
+          example: validation_error
+          description: Stable machine-readable error code such as DEADLINE_PASSED, OPPORTUNITY_CLOSED, DUPLICATE_APPLICATION,
+            INVALID_STATUS_TRANSITION, NOT_VERIFIED, COMPANY_NOT_APPROVED, or RESOURCE_ARCHIVED.
+        message:
+          type: string
+          example: Invalid request data
+    Message:
+      type: object
+      required:
+      - message
+      properties:
+        message:
+          type: string
+          example: Operation completed successfully
+    Credentials:
+      type: object
+      required:
+      - email
+      - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: student@my.xu.edu.ph
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: ExamplePass123!
+    Registration:
+      type: object
+      required:
+      - name
+      - email
+      - password
+      - role
+      properties:
+        name:
+          type: string
+          example: Alex Student
+        email:
+          type: string
+          format: email
+          example: student@my.xu.edu.ph
+          description: Student registration requires an @my.xu.edu.ph address. Company registration uses an organizational
+            email and is pending administrator approval. Email ownership verification required.
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: ExamplePass123!
+        role:
+          type: string
+          enum:
+          - student
+          - company
+          example: student
+    User:
+      type: object
+      required:
+      - user_id
+      - name
+      - email
+      - role
+      properties:
+        user_id:
+          type: integer
+          example: 5
+        name:
+          type: string
+          example: Alex Student
+        email:
+          type: string
+          format: email
+          example: student@my.xu.edu.ph
+        role:
+          type: string
+          enum:
+          - student
+          - company
+          example: student
+        verification_status:
+          type: string
+          enum:
+          - pending
+          - verified
+          - rejected
+          description: XU student must verify ownership of an @my.xu.edu.ph address before applying; company account
+            remains pending until approved by administrator.
+          example: verified
+    ProfileUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          example: Alex D. Student
+        email:
+          type: string
+          format: email
+          example: student@my.xu.edu.ph
+    AuthResponse:
+      type: object
+      required:
+      - access_token
+      - user
+      properties:
+        access_token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiJ9.example.signature
+        token_type:
+          type: string
+          example: Bearer
+        user:
+          $ref: '#/components/schemas/User'
+    Company:
+      type: object
+      required:
+      - company_id
+      - owner_user_id
+      - company_name
+      - address
+      - email
+      properties:
+        company_id:
+          type: integer
+          example: 3
+        owner_user_id:
+          type: integer
+          example: 9
+        company_name:
+          type: string
+          example: ABC Technology
+        address:
+          type: string
+          example: Cagayan de Oro City
+        email:
+          type: string
+          format: email
+          example: hr@abctech.example
+        contact_info:
+          type: string
+          example: 09170000000
+        verification_status:
+          type: string
+          enum:
+          - pending
+          - approved
+          - rejected
+          - suspended
+          description: Only approved companies can create or edit open opportunity listings.
+          example: approved
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Archive timestamp; null for active companies.
+    CompanyCreate:
+      type: object
+      required:
+      - company_name
+      - address
+      - email
+      properties:
+        company_name:
+          type: string
+          example: ABC Technology
+        address:
+          type: string
+          example: Cagayan de Oro City
+        email:
+          type: string
+          format: email
+          example: hr@abctech.example
+        contact_info:
+          type: string
+          example: 09170000000
+    CompanyUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        company_name:
+          type: string
+          example: ABC Technology Inc.
+        address:
+          type: string
+          example: Cagayan de Oro City
+        email:
+          type: string
+          format: email
+          example: hr@abctech.example
+        contact_info:
+          type: string
+          example: 09170000000
+    OpportunityCreate:
+      type: object
+      required:
+      - title
+      - opportunity_type
+      - description
+      - location
+      - deadline
+      properties:
+        title:
+          type: string
+          example: IT Intern
+        opportunity_type:
+          type: string
+          enum:
+          - internship
+          - ojt
+          - part_time
+          - training
+          - entry_level
+          example: internship
+        description:
+          type: string
+          example: Assist the IT support team.
+        location:
+          type: string
+          example: Cagayan de Oro City
+        deadline:
+          type: string
+          format: date
+          example: '2026-12-15'
+    OpportunityUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          example: Junior IT Intern
+        opportunity_type:
+          type: string
+          enum:
+          - internship
+          - ojt
+          - part_time
+          - training
+          - entry_level
+        description:
+          type: string
+        location:
+          type: string
+        deadline:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - open
+          - closed
+          example: open
+    Opportunity:
+      allOf:
+      - $ref: '#/components/schemas/OpportunityCreate'
+      - type: object
+        required:
+        - opportunity_id
+        - company_id
+        - status
+        properties:
+          opportunity_id:
+            type: integer
+            example: 12
+          company_id:
+            type: integer
+            example: 3
+          status:
+            type: string
+            enum:
+            - open
+            - closed
+            example: open
+          deleted_at:
+            type: string
+            format: date-time
+            nullable: true
+            description: Soft-delete timestamp; archived opportunities are not returned in public listings.
+    ApplicationCreate:
+      type: object
+      required:
+      - opportunity_id
+      properties:
+        opportunity_id:
+          type: integer
+          example: 12
+          description: Must refer to a non-archived, open opportunity with deadline >= current local date and an
+            approved, active company.
+      description: Student identity is derived from bearer token; student must be XU-verified. Server sets submitted
+        status and application timestamp.
+    ApplicationUpdate:
+      type: object
+      required:
+      - status
+      properties:
+        status:
+          type: string
+          enum:
+          - under_review
+          - interview
+          - accepted
+          - rejected
+          example: under_review
+          description: Company owner only. submitted -> under_review; under_review -> interview/accepted/rejected;
+            interview -> accepted/rejected. No reopening or changing accepted/rejected decisions.
+    Application:
+      type: object
+      required:
+      - application_id
+      - user_id
+      - opportunity_id
+      - date_applied
+      - status
+      properties:
+        application_id:
+          type: integer
+          example: 25
+        user_id:
+          type: integer
+          example: 5
+        opportunity_id:
+          type: integer
+          example: 12
+        date_applied:
+          type: string
+          format: date-time
+          example: '2026-11-13T10:00:00+08:00'
+        status:
+          type: string
+          enum:
+          - submitted
+          - under_review
+          - interview
+          - accepted
+          - rejected
+          - withdrawn
+          example: submitted
+          description: Submitted -> under_review -> interview -> accepted/rejected. under_review may go directly
+            to accepted/rejected. Student may withdraw only from submitted or under_review. Accepted, rejected,
+            and withdrawn are terminal.
+        withdrawn_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set on withdrawal; record retained for audit/history.
+        applicant:
+          $ref: '#/components/schemas/StudentProfile'
+      description: Applicant details are visible only to the applicant and the approved company owning the referenced
+        opportunity; never expose unrelated student records.
+    OpportunityList:
+      type: array
+      items:
+        $ref: '#/components/schemas/Opportunity'
+    ApplicationList:
+      type: array
+      items:
+        $ref: '#/components/schemas/Application'
+    StudentProfile:
+      type: object
+      description: Student profile fields used for applications. Visible to the student and to companies owning
+        an opportunity to which the student applied; not public.
+      required:
+      - user_id
+      - name
+      - email
+      properties:
+        user_id:
+          type: integer
+          example: 5
+        name:
+          type: string
+          example: Alex Student
+        email:
+          type: string
+          format: email
+          example: alex@my.xu.edu.ph
+        course:
+          type: string
+          example: BS Information Technology
+        year_level:
+          type: integer
+          minimum: 1
+          example: 4
+        skills:
+          type: array
+          items:
+            type: string
+          example:
+          - Python
+          - SQL
+        qualifications_summary:
+          type: string
+          example: Completed web development training and database coursework.
+        resume_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Optional link to an uploaded résumé; authorization must be checked before access.
+          example: https://files.example.edu/resumes/alex.pdf
+    StudentProfileUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        course:
+          type: string
+          example: BS Information Technology
+        year_level:
+          type: integer
+          minimum: 1
+          example: 4
+        skills:
+          type: array
+          items:
+            type: string
+          example:
+          - Python
+          - SQL
+        qualifications_summary:
+          type: string
+          example: Completed web development training and database coursework.
+        resume_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Optional link to an uploaded résumé; authorization must be checked before access.
+          example: https://files.example.edu/resumes/alex.pdf
