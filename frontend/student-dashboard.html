@@ -150,6 +150,121 @@
             color: #667085;
         }
 
+        /* ==========================================
+           APPLICATION CONFIRMATION MODAL
+        ========================================== */
+
+        .apply-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(12, 24, 45, 0.65);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            padding: 20px;
+            box-sizing: border-box;
+            backdrop-filter: blur(5px);
+        }
+
+        .apply-modal-overlay.active {
+            display: flex;
+        }
+
+        .apply-modal {
+            background: #ffffff;
+            width: 100%;
+            max-width: 420px;
+            padding: 35px 30px;
+            box-sizing: border-box;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            animation: applyModalEnter 0.25s ease-out;
+        }
+
+        @keyframes applyModalEnter {
+            from {
+                opacity: 0;
+                transform: translateY(15px) scale(0.96);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .apply-modal-icon {
+            width: 65px;
+            height: 65px;
+            margin: 0 auto 18px;
+            border-radius: 50%;
+            background: #eaf1fb;
+            color: #173b70;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+        }
+
+        .apply-modal h2 {
+            font-size: 23px;
+            color: #173b70;
+            margin: 0 0 12px;
+        }
+
+        .apply-modal p {
+            font-size: 15px;
+            color: #64748b;
+            line-height: 1.7;
+            margin-bottom: 24px;
+        }
+
+        .apply-modal strong {
+            color: #173b70;
+        }
+
+        .apply-modal-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .apply-modal-actions button {
+            flex: 1;
+            padding: 13px 10px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .apply-cancel {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            color: #475569;
+        }
+
+        .apply-cancel:hover {
+            background: #e2e8f0;
+        }
+
+        .apply-confirm {
+            background: #173b70;
+            border: 1px solid #173b70;
+            color: white;
+        }
+
+        .apply-confirm:hover {
+            background: #24569b;
+        }
+
+        .apply-confirm:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         @media (max-width: 700px) {
             .stats-grid {
                 grid-template-columns: 1fr;
@@ -161,6 +276,10 @@
 
             .welcome-card {
                 padding: 25px;
+            }
+
+            .apply-modal {
+                padding: 28px 20px;
             }
         }
     </style>
@@ -223,7 +342,7 @@
 
             <div id="applications-list">
                 <p class="empty-message">
-                    Application tracking is coming soon.
+                    Loading your applications...
                 </p>
             </div>
         </section>
@@ -233,6 +352,49 @@
     <footer class="dashboard-footer">
         TrabahoTa! | SDG 8: Decent Work and Economic Growth
     </footer>
+
+    <!-- APPLICATION CONFIRMATION POPUP -->
+    <div
+        id="apply-modal-overlay"
+        class="apply-modal-overlay"
+    >
+        <div
+            class="apply-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="apply-modal-title"
+        >
+            <div class="apply-modal-icon">💼</div>
+
+            <h2 id="apply-modal-title">Ready to apply?</h2>
+
+            <p>
+                You're about to apply for
+                <strong id="apply-job-title"></strong>
+                at
+                <strong id="apply-company-name"></strong>.
+                Would you like to submit your application?
+            </p>
+
+            <div class="apply-modal-actions">
+                <button
+                    type="button"
+                    class="apply-cancel"
+                    id="apply-cancel-btn"
+                >
+                    Not Yet
+                </button>
+
+                <button
+                    type="button"
+                    class="apply-confirm"
+                    id="apply-confirm-btn"
+                >
+                    Yes, Apply Now
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script src="js/student-dashboard.js"></script>
 

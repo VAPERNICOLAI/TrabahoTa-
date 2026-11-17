@@ -6,157 +6,570 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Company Dashboard | TrabahoTa!</title>
     <link rel="stylesheet" href="css/style.css">
+
     <style>
         * { box-sizing: border-box; }
-        body { margin: 0; background: #f4f7fb; font-family: Arial, sans-serif; color: #233044; }
-        .nav { background: #173b70; color: white; padding: 18px 6%; display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap; }
+
+        body {
+            margin: 0;
+            background: #f4f7fb;
+            font-family: Arial, sans-serif;
+            color: #233044;
+        }
+
+        .nav {
+            background: #173b70;
+            color: white;
+            padding: 18px 6%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
         .logo { font-size: 24px; font-weight: bold; }
-        .nav-links { display: flex; gap: 18px; align-items: center; }
+
+        .nav-links {
+            display: flex;
+            gap: 18px;
+            align-items: center;
+        }
+
         .nav a { color: white; text-decoration: none; }
-        .container { max-width: 1120px; margin: 35px auto; padding: 0 20px; }
-        .welcome { background: #173b70; color: white; border-radius: 15px; padding: 30px; margin-bottom: 25px; }
+
+        .container {
+            max-width: 1120px;
+            margin: 35px auto;
+            padding: 0 20px;
+        }
+
+        .welcome {
+            background: #173b70;
+            color: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 25px;
+        }
+
         .welcome h1 { color: white; margin: 0 0 12px; }
         .welcome p { color: #e3eafa; }
-        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 25px; }
-        .stat, .panel { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 3px 15px rgba(0,0,0,.06); }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+            margin-bottom: 25px;
+        }
+
+        .stat, .panel {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 3px 15px rgba(0,0,0,.06);
+        }
+
         .stat h3 { font-size: 15px; color: #667085; }
         .stat strong { font-size: 30px; color: #173b70; }
+
         .panel { margin-bottom: 25px; }
         .panel h2 { color: #173b70; margin-top: 0; }
-        .panel-header { display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap; }
-        button { cursor: pointer; border: 0; padding: 11px 17px; border-radius: 8px; font-weight: 600; }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            cursor: pointer;
+            border: 0;
+            padding: 11px 17px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
         button:disabled { opacity: .55; cursor: not-allowed; }
+
         .primary { background: #173b70; color: white; }
         .secondary { background: #e8eef8; color: #173b70; }
         .danger { background: #dc3545; color: white; }
         .success { background: #16794b; color: white; }
-        .posting { border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-top: 15px; }
+
+        .posting {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 15px;
+        }
+
         .posting h3 { margin-top: 0; color: #173b70; }
         .posting p { line-height: 1.5; overflow-wrap: anywhere; }
-        .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 15px; }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
         .muted { color: #667085; }
-        .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
         .field { display: flex; flex-direction: column; gap: 7px; }
         .field.full { grid-column: 1 / -1; }
+
         label { font-weight: 600; }
-        input, textarea, select { padding: 11px; border: 1px solid #cbd5e1; border-radius: 8px; width: 100%; font: inherit; }
+
+        input, textarea, select {
+            padding: 11px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            width: 100%;
+            font: inherit;
+        }
+
         textarea { min-height: 110px; resize: vertical; }
-        .form-actions { display: flex; gap: 10px; margin-top: 18px; }
-        .message { margin: 12px 0; min-height: 22px; }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .message {
+            margin: 12px 0;
+            min-height: 22px;
+        }
+
         .message.error { color: #b42318; }
         .message.success-text { color: #16794b; }
-        .hidden { display: none; }
-        .status { display: inline-block; background: #e8eef8; padding: 5px 10px; border-radius: 20px; font-size: 13px; }
-        footer { text-align: center; padding: 25px; color: #667085; }
+
+        .hidden { display: none !important; }
+
+        .status {
+            display: inline-block;
+            background: #e8eef8;
+            color: #173b70;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .status.submitted {
+            background: #fff4db;
+            color: #946200;
+        }
+
+        .status.under_review {
+            background: #e5efff;
+            color: #24569b;
+        }
+
+        .status.accepted {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status.rejected {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        /* APPLICANT TABLE */
+
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        .applicant-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 750px;
+        }
+
+        .applicant-table th {
+            background: #f4f7fb;
+            color: #475569;
+            padding: 14px;
+            text-align: left;
+            font-size: 13px;
+        }
+
+        .applicant-table td {
+            padding: 15px 14px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+            vertical-align: middle;
+        }
+
+        .applicant-table tr:hover {
+            background: #fafcff;
+        }
+
+        .applicant-name {
+            font-weight: 700;
+            color: #173b70;
+        }
+
+        .applicant-email {
+            display: block;
+            color: #667085;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        .status-control {
+            display: flex;
+            gap: 7px;
+            min-width: 220px;
+        }
+
+        .status-control select {
+            min-width: 130px;
+            padding: 8px;
+            font-size: 12px;
+        }
+
+        .status-control button {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+        .view-btn {
+            background: #e8eef8;
+            color: #173b70;
+            padding: 9px 12px;
+        }
+
+        .empty-state {
+            padding: 35px 15px;
+            text-align: center;
+            color: #667085;
+        }
+
+        /* APPLICANT DETAILS MODAL */
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(12, 24, 45, .65);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 9999;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: white;
+            width: 100%;
+            max-width: 450px;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 15px 50px rgba(0,0,0,.2);
+            animation: modalEnter .2s ease;
+        }
+
+        @keyframes modalEnter {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal h2 {
+            color: #173b70;
+            margin-top: 0;
+        }
+
+        .detail-row {
+            padding: 12px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .detail-label {
+            display: block;
+            color: #667085;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .detail-value {
+            color: #173b70;
+            font-weight: 600;
+            overflow-wrap: anywhere;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 25px;
+            color: #667085;
+        }
+
         @media(max-width: 700px) {
             .stats, .form-grid { grid-template-columns: 1fr; }
             .nav { flex-direction: column; }
             .field.full { grid-column: auto; }
+            .modal { padding: 24px 20px; }
         }
     </style>
 </head>
+
 <body>
-    <header class="nav">
-        <div class="logo">TrabahoTa!</div>
-        <nav class="nav-links">
-            <a href="index.html">Home</a>
-            <a href="company-dashboard.html">Dashboard</a>
-            <button id="logout-btn" class="danger">Logout</button>
-        </nav>
-    </header>
 
-    <main class="container">
-        <section class="welcome">
-            <h1 id="welcome-message">Checking your account...</h1>
-            <p>From Tambay to Trabaho</p>
-            <p>Manage opportunities for the Xavier University community.</p>
-        </section>
+<header class="nav">
+    <div class="logo">TrabahoTa!</div>
 
-        <section class="stats">
-            <div class="stat">
-                <h3>Total Postings</h3>
-                <strong id="postings-count">—</strong>
-            </div>
-            <div class="stat">
-                <h3>Open Postings</h3>
-                <strong id="active-count">—</strong>
-            </div>
-            <div class="stat">
-                <h3>Applications Received</h3>
-                <strong id="applications-count">—</strong>
-            </div>
-        </section>
+    <nav class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="company-dashboard.html">Dashboard</a>
+        <button id="logout-btn" class="danger">Logout</button>
+    </nav>
+</header>
 
-        <section class="panel">
-            <div class="panel-header">
-                <h2>Manage Opportunities</h2>
-                <button id="create-posting-btn" class="primary" disabled>
-                    + Create Opportunity
-                </button>
-            </div>
-            <p class="muted">Publish jobs, internships, and OJT opportunities.</p>
-            <p id="dashboard-message" class="message" role="status" aria-live="polite"></p>
+<main class="container">
 
-            <div id="posting-form-panel" class="hidden">
-                <h3 id="form-title">Create Opportunity</h3>
-                <form id="opportunity-form">
-                    <div class="form-grid">
-                        <div class="field full">
-                            <label for="job-title">Job Title</label>
-                            <input id="job-title" required maxlength="150">
-                        </div>
-                        <div class="field full">
-                            <label for="job-description">Description</label>
-                            <textarea id="job-description" required></textarea>
-                        </div>
-                        <div class="field">
-                            <label for="job-type">Opportunity Type</label>
-                            <select id="job-type" required>
-                                <option value="job">Job</option>
-                                <option value="internship">Internship</option>
-                                <option value="ojt">OJT</option>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label for="job-location">Location</label>
-                            <input id="job-location" placeholder="Cagayan de Oro City">
-                        </div>
-                        <div class="field">
-                            <label for="job-deadline">Application Deadline</label>
-                            <input id="job-deadline" type="date">
-                        </div>
-                        <div class="field">
-                            <label for="job-status">Status</label>
-                            <select id="job-status">
-                                <option value="open">Open</option>
-                                <option value="closed">Closed</option>
-                            </select>
-                        </div>
+    <section class="welcome">
+        <h1 id="welcome-message">Checking your account...</h1>
+        <p>From Tambay to Trabaho</p>
+        <p>Manage opportunities for the Xavier University community.</p>
+    </section>
+
+    <!-- DASHBOARD STATISTICS -->
+
+    <section class="stats">
+
+        <div class="stat">
+            <h3>Total Postings</h3>
+            <strong id="postings-count">—</strong>
+        </div>
+
+        <div class="stat">
+            <h3>Open Postings</h3>
+            <strong id="active-count">—</strong>
+        </div>
+
+        <div class="stat">
+            <h3>Applications Received</h3>
+            <strong id="applications-count">—</strong>
+        </div>
+
+    </section>
+
+    <!-- MANAGE OPPORTUNITIES -->
+
+    <section class="panel">
+
+        <div class="panel-header">
+            <h2>Manage Opportunities</h2>
+
+            <button id="create-posting-btn" class="primary" disabled>
+                + Create Opportunity
+            </button>
+        </div>
+
+        <p class="muted">
+            Publish jobs, internships, and OJT opportunities.
+        </p>
+
+        <p id="dashboard-message" class="message"
+           role="status" aria-live="polite"></p>
+
+        <div id="posting-form-panel" class="hidden">
+
+            <h3 id="form-title">Create Opportunity</h3>
+
+            <form id="opportunity-form">
+
+                <div class="form-grid">
+
+                    <div class="field full">
+                        <label for="job-title">Job Title</label>
+                        <input id="job-title" required maxlength="150">
                     </div>
-                    <div class="form-actions">
-                        <button id="save-posting-btn" type="submit" class="primary">Save Opportunity</button>
-                        <button id="cancel-posting-btn" type="button" class="secondary">Cancel</button>
+
+                    <div class="field full">
+                        <label for="job-description">Description</label>
+                        <textarea id="job-description" required></textarea>
                     </div>
-                </form>
+
+                    <div class="field">
+                        <label for="job-type">Opportunity Type</label>
+                        <select id="job-type" required>
+                            <option value="job">Job</option>
+                            <option value="internship">Internship</option>
+                            <option value="ojt">OJT</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="job-location">Location</label>
+                        <input id="job-location"
+                               placeholder="Cagayan de Oro City">
+                    </div>
+
+                    <div class="field">
+                        <label for="job-deadline">Application Deadline</label>
+                        <input id="job-deadline" type="date">
+                    </div>
+
+                    <div class="field">
+                        <label for="job-status">Status</label>
+                        <select id="job-status">
+                            <option value="open">Open</option>
+                            <option value="closed">Closed</option>
+                        </select>
+                    </div>
+
+                </div>
+
+                <div class="form-actions">
+                    <button id="save-posting-btn"
+                            type="submit"
+                            class="primary">
+                        Save Opportunity
+                    </button>
+
+                    <button id="cancel-posting-btn"
+                            type="button"
+                            class="secondary">
+                        Cancel
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </section>
+
+    <!-- MY JOB POSTINGS -->
+
+    <section class="panel">
+        <h2>My Job Postings</h2>
+
+        <div id="postings-list">
+            <p class="muted">Loading opportunities...</p>
+        </div>
+    </section>
+
+    <!-- APPLICANT MANAGEMENT -->
+
+    <section class="panel">
+
+        <div class="panel-header">
+            <div>
+                <h2>Applicant Management</h2>
+                <p class="muted">
+                    Review applications submitted to your company.
+                </p>
             </div>
-        </section>
 
-        <section class="panel">
-            <h2>My Job Postings</h2>
-            <div id="postings-list">
-                <p class="muted">Loading opportunities...</p>
-            </div>
-        </section>
+            <button id="refresh-applications-btn" class="secondary">
+                Refresh
+            </button>
+        </div>
 
-        <section class="panel">
-            <h2>Applications Received</h2>
-            <p class="muted">
-                Applicant management will be available when the applications API is implemented.
-            </p>
-        </section>
-    </main>
+        <p id="applications-message"
+           class="message"
+           role="status"
+           aria-live="polite"></p>
 
-    <footer>TrabahoTa! | SDG 8: Decent Work and Economic Growth</footer>
-    <script src="js/company-dashboard.js"></script>
+        <div class="table-wrapper">
+
+            <table class="applicant-table">
+
+                <thead>
+                    <tr>
+                        <th>Applicant</th>
+                        <th>Position</th>
+                        <th>Date Applied</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+
+                <tbody id="applications-list">
+                    <tr>
+                        <td colspan="5" class="empty-state">
+                            Loading applications...
+                        </td>
+                    </tr>
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+</main>
+
+<!-- APPLICANT DETAILS POPUP -->
+
+<div id="applicant-modal" class="modal-overlay">
+
+    <div class="modal" role="dialog"
+         aria-modal="true"
+         aria-labelledby="applicant-modal-title">
+
+        <h2 id="applicant-modal-title">Applicant Details</h2>
+
+        <div class="detail-row">
+            <span class="detail-label">Applicant Name</span>
+            <span id="detail-name" class="detail-value"></span>
+        </div>
+
+        <div class="detail-row">
+            <span class="detail-label">Email Address</span>
+            <span id="detail-email" class="detail-value"></span>
+        </div>
+
+        <div class="detail-row">
+            <span class="detail-label">Applied Position</span>
+            <span id="detail-position" class="detail-value"></span>
+        </div>
+
+        <div class="detail-row">
+            <span class="detail-label">Date Applied</span>
+            <span id="detail-date" class="detail-value"></span>
+        </div>
+
+        <div class="detail-row">
+            <span class="detail-label">Application Status</span>
+            <span id="detail-status" class="detail-value"></span>
+        </div>
+
+        <div class="modal-footer">
+            <button id="close-applicant-modal" class="primary">
+                Close
+            </button>
+        </div>
+
+    </div>
+</div>
+
+<footer>
+    TrabahoTa! | SDG 8: Decent Work and Economic Growth
+</footer>
+
+<script src="js/company-dashboard.js"></script>
+
 </body>
 </html>

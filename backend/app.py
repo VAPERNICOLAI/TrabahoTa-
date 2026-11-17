@@ -545,14 +545,12 @@ def company_dashboard():
 
 # =====================================================
 # API 9: CREATE OPPORTUNITY
-# COMPANY ONLY
 # =====================================================
 
 @app.route("/api/opportunities", methods=["POST"])
 @role_required("company")
 def create_opportunity():
     data = request.get_json(silent=True)
-
     values, error = validate_opportunity(data)
 
     if error:
@@ -613,7 +611,7 @@ def create_opportunity():
 
 
 # =====================================================
-# API 10: COMPANY'S OWN OPPORTUNITIES
+# API 10: COMPANY OPPORTUNITIES
 # =====================================================
 
 @app.route("/api/company/opportunities", methods=["GET"])
@@ -702,14 +700,12 @@ def get_single_opportunity(opportunity_id):
 
 # =====================================================
 # API 12: UPDATE OPPORTUNITY
-# COMPANY OWNER ONLY
 # =====================================================
 
 @app.route("/api/opportunities/<int:opportunity_id>", methods=["PUT"])
 @role_required("company")
 def update_opportunity(opportunity_id):
     data = request.get_json(silent=True)
-
     connection = get_db_connection()
 
     try:
@@ -790,7 +786,6 @@ def update_opportunity(opportunity_id):
 
 # =====================================================
 # API 13: DELETE OPPORTUNITY
-# COMPANY OWNER ONLY
 # =====================================================
 
 @app.route("/api/opportunities/<int:opportunity_id>", methods=["DELETE"])
@@ -851,8 +846,267 @@ def delete_opportunity(opportunity_id):
 
 
 # =====================================================
+# API 14: STUDENT APPLY FOR OPPORTUNITY
+# =====================================================
+
+@app.route("/api/opportunities/<int:opportunity_id>/apply", methods=["POST"])
+@role_required("student")
+def apply_for_opportunity(opportunity_id):
+    connection = get_db_connection()
+
+    try:
+        opportunity = connection.execute("""
+            SELECT o.id
+            FROM opportunities o
+            JOIN companies c ON o.company_id = c.id
+            WHERE o.id = ?
+              AND o.status = 'open'
+              AND c.is_approved = 1
+              AND (
+                  o.deadline IS NULL
+                  OR o.deadline >= DATE('now')
+              )
+        """, (opportunity_id,)).fetchone()
+
+        if opportunity is None:
+            return jsonify({
+                "error": "Opportunity is unavailable or closed"
+            }), 404
+
+        existing_application = connection.execute("""
+            SELECT id
+            FROM applications
+            WHERE student_id = ?
+              AND opportunity_id = ?
+        """, (
+            session["user_id"],
+            opportunity_id
+        )).fetchone()
+
+        if existing_application:
+            return jsonify({
+                "error": "You have already applied for this opportunity"
+            }), 409
+
+        cursor = connection.execute("""
+            INSERT INTO applications (
+                student_id,
+                opportunity_id,
+                status
+            )
+            VALUES (?, ?, 'submitted')
+        """, (
+            session["user_id"],
+            opportunity_id
+        ))
+
+        connection.commit()
+
+        return jsonify({
+            "message": "Application submitted successfully",
+            "application": {
+                "id": cursor.lastrowid,
+                "student_id": session["user_id"],
+                "opportunity_id": opportunity_id,
+                "status": "submitted"
+            }
+        }), 201
+
+    except sqlite3.IntegrityError:
+        connection.rollback()
+
+        return jsonify({
+            "error": "Application already exists or is invalid"
+        }), 409
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 15: STUDENT APPLICATION HISTORY
+# =====================================================
+
+@app.route("/api/student/applications", methods=["GET"])
+@role_required("student")
+def get_student_applications():
+    connection = get_db_connection()
+
+    try:
+        rows = connection.execute("""
+            SELECT
+                a.id,
+                a.student_id,
+                a.opportunity_id,
+                a.status,
+                a.applied_at,
+                o.title,
+                o.opportunity_type,
+                o.location,
+                c.company_name
+            FROM applications a
+            JOIN opportunities o
+                ON a.opportunity_id = o.id
+            JOIN companies c
+                ON o.company_id = c.id
+            WHERE a.student_id = ?
+            ORDER BY a.applied_at DESC, a.id DESC
+        """, (session["user_id"],)).fetchall()
+
+        applications = [dict(row) for row in rows]
+
+        pending_statuses = {
+            "submitted",
+            "pending",
+            "under_review"
+        }
+
+        return jsonify({
+            "applications": applications,
+            "total": len(applications),
+            "pending": sum(
+                1 for application in applications
+                if application["status"] in pending_statuses
+            )
+        }), 200
+
+    finally:
+        connection.close()
+
+
+# =====================================================
 # START DEVELOPMENT SERVER
 # =====================================================
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False)
+# =====================================================
+# API 16: COMPANY VIEW APPLICATIONS
+# =====================================================
+
+@app.route("/api/company/applications", methods=["GET"])
+@role_required("company")
+def get_company_applications():
+    connection = get_db_connection()
+
+    try:
+        company = get_company(connection)
+
+        if company is None:
+            return jsonify({
+                "error": "Company profile not found"
+            }), 404
+
+        rows = connection.execute("""
+            SELECT
+                a.id,
+                a.student_id,
+                a.opportunity_id,
+                a.status,
+                a.applied_at,
+                u.full_name AS student_name,
+                u.email AS student_email,
+                o.title AS opportunity_title
+            FROM applications a
+            JOIN users u ON a.student_id = u.id
+            JOIN opportunities o ON a.opportunity_id = o.id
+            WHERE o.company_id = ?
+            ORDER BY a.applied_at DESC, a.id DESC
+        """, (company["id"],)).fetchall()
+
+        applications = [dict(row) for row in rows]
+
+        return jsonify({
+            "applications": applications,
+            "total": len(applications),
+            "pending": sum(
+                1 for application in applications
+                if application["status"] in (
+                    "submitted",
+                    "pending",
+                    "under_review"
+                )
+            )
+        }), 200
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 17: COMPANY UPDATE APPLICATION STATUS
+# =====================================================
+
+@app.route("/api/applications/<int:application_id>", methods=["PATCH"])
+@role_required("company")
+def update_application_status(application_id):
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict):
+        return jsonify({
+            "error": "A JSON object is required"
+        }), 400
+
+    status = data.get("status")
+
+    allowed_statuses = {
+        "submitted",
+        "under_review",
+        "accepted",
+        "rejected"
+    }
+
+    if status not in allowed_statuses:
+        return jsonify({
+            "error": "Invalid application status"
+        }), 400
+
+    connection = get_db_connection()
+
+    try:
+        company = get_company(connection)
+
+        if company is None:
+            return jsonify({
+                "error": "Company profile not found"
+            }), 404
+
+        application = connection.execute("""
+            SELECT a.id, a.status
+            FROM applications a
+            JOIN opportunities o ON a.opportunity_id = o.id
+            WHERE a.id = ?
+              AND o.company_id = ?
+        """, (
+            application_id,
+            company["id"]
+        )).fetchone()
+
+        if application is None:
+            return jsonify({
+                "error": "Application not found"
+            }), 404
+
+        if not company["is_approved"]:
+            return jsonify({
+                "error": "Company approval is required"
+            }), 403
+
+        connection.execute("""
+            UPDATE applications
+            SET status = ?
+            WHERE id = ?
+        """, (status, application_id))
+
+        connection.commit()
+
+        return jsonify({
+            "message": "Application status updated successfully",
+            "application": {
+                "id": application_id,
+                "status": status
+            }
+        }), 200
+
+    finally:
+        connection.close()
