@@ -1,7 +1,7 @@
 
 import os
 import sqlite3
-from datetime import timedelta
+from datetime import date, timedelta
 from functools import wraps
 
 from flask import Flask, jsonify, request, session
@@ -11,11 +11,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from database import init_db, get_db_connection
 
 
+# =====================================================
+# TRABAHOTA! FLASK APPLICATION
+# =====================================================
+
 app = Flask(__name__)
 
-# IMPORTANT:
-# Set FLASK_SECRET_KEY to a long random value in your environment.
-# This development fallback is only for local testing.
 app.config["SECRET_KEY"] = os.environ.get(
     "FLASK_SECRET_KEY",
     "dev-only-change-this-before-deployment"
@@ -28,7 +29,6 @@ app.config["SESSION_COOKIE_SECURE"] = (
     os.environ.get("FLASK_COOKIE_SECURE", "false").lower() == "true"
 )
 
-# Allow cookies when using VS Code Live Server
 CORS(
     app,
     resources={
@@ -42,11 +42,13 @@ CORS(
     supports_credentials=True
 )
 
-# Initialize SQLite database
 init_db()
 
 
-# SESSION AUTHENTICATION HELPERS
+# =====================================================
+# AUTHENTICATION HELPERS
+# =====================================================
+
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
@@ -69,7 +71,24 @@ def role_required(required_role):
                     "error": "Authentication required"
                 }), 401
 
-            if session.get("role") != required_role:
+            connection = get_db_connection()
+
+            try:
+                user = connection.execute("""
+                    SELECT role
+                    FROM users
+                    WHERE id = ?
+                """, (session["user_id"],)).fetchone()
+            finally:
+                connection.close()
+
+            if user is None:
+                session.clear()
+                return jsonify({
+                    "error": "Session is no longer valid"
+                }), 401
+
+            if user["role"] != required_role:
                 return jsonify({
                     "error": "Access denied"
                 }), 403
@@ -81,7 +100,145 @@ def role_required(required_role):
     return decorator
 
 
+def get_company(connection):
+    return connection.execute("""
+        SELECT id, user_id, company_name, is_approved
+        FROM companies
+        WHERE user_id = ?
+    """, (session["user_id"],)).fetchone()
+
+
+# =====================================================
+# OPPORTUNITY VALIDATION
+# =====================================================
+
+OPPORTUNITY_FIELDS = {
+    "title",
+    "description",
+    "opportunity_type",
+    "location",
+    "deadline",
+    "status"
+}
+
+OPPORTUNITY_TYPES = {
+    "job",
+    "internship",
+    "ojt"
+}
+
+OPPORTUNITY_STATUSES = {
+    "open",
+    "closed"
+}
+
+
+def validate_opportunity(data, existing=None):
+    if not isinstance(data, dict):
+        return None, "A JSON object is required"
+
+    if not data:
+        return None, "Request body cannot be empty"
+
+    unknown_fields = set(data) - OPPORTUNITY_FIELDS
+
+    if unknown_fields:
+        return None, (
+            "Unknown fields: " +
+            ", ".join(sorted(unknown_fields))
+        )
+
+    if existing is None:
+        required = {
+            "title",
+            "description",
+            "opportunity_type"
+        }
+
+        missing = required - set(data)
+
+        if missing:
+            return None, (
+                "Missing required fields: " +
+                ", ".join(sorted(missing))
+            )
+
+        values = {
+            "title": "",
+            "description": "",
+            "opportunity_type": "",
+            "location": None,
+            "deadline": None,
+            "status": "open"
+        }
+    else:
+        values = dict(existing)
+
+    values.update(data)
+
+    for field in ("title", "description", "opportunity_type"):
+        value = values.get(field)
+
+        if not isinstance(value, str) or not value.strip():
+            return None, f"{field} must be a non-empty string"
+
+        values[field] = value.strip()
+
+    values["opportunity_type"] = (
+        values["opportunity_type"].lower()
+    )
+
+    if values["opportunity_type"] not in OPPORTUNITY_TYPES:
+        return None, (
+            "opportunity_type must be job, internship, or ojt"
+        )
+
+    location = values.get("location")
+
+    if location is not None:
+        if not isinstance(location, str):
+            return None, "location must be a string or null"
+
+        values["location"] = location.strip() or None
+
+    deadline = values.get("deadline")
+
+    if deadline is not None:
+        if not isinstance(deadline, str):
+            return None, "deadline must use YYYY-MM-DD"
+
+        try:
+            parsed_deadline = date.fromisoformat(deadline)
+        except ValueError:
+            return None, "deadline must be a valid YYYY-MM-DD date"
+
+        if parsed_deadline.isoformat() != deadline:
+            return None, "deadline must use YYYY-MM-DD"
+
+        if parsed_deadline < date.today():
+            return None, "deadline cannot be in the past"
+
+    status = values.get("status")
+
+    if not isinstance(status, str):
+        return None, "status must be open or closed"
+
+    values["status"] = status.lower().strip()
+
+    if values["status"] not in OPPORTUNITY_STATUSES:
+        return None, "status must be open or closed"
+
+    if existing is not None:
+        if existing["status"] == "closed" and values["status"] == "open":
+            return None, "Closed opportunities cannot be reopened"
+
+    return values, None
+
+
+# =====================================================
 # API 1: HEALTH CHECK
+# =====================================================
+
 @app.route("/api/health", methods=["GET"])
 def health_check():
     connection = get_db_connection()
@@ -100,46 +257,49 @@ def health_check():
     }), 200 if database_status == "connected" else 503
 
 
-# API 2: GET JOB OPPORTUNITIES
+# =====================================================
+# API 2: PUBLIC OPPORTUNITIES
+# =====================================================
+
 @app.route("/api/opportunities", methods=["GET"])
 def get_opportunities():
     connection = get_db_connection()
 
     try:
-        opportunities = connection.execute("""
+        rows = connection.execute("""
             SELECT
-                opportunities.id,
-                opportunities.title,
-                opportunities.description,
-                opportunities.opportunity_type,
-                opportunities.location,
-                opportunities.deadline,
-                opportunities.status,
-                companies.company_name
-            FROM opportunities
-            JOIN companies
-                ON opportunities.company_id = companies.id
-            WHERE opportunities.status = 'open'
-              AND companies.is_approved = 1
+                o.id,
+                o.title,
+                o.description,
+                o.opportunity_type,
+                o.location,
+                o.deadline,
+                o.status,
+                c.company_name
+            FROM opportunities o
+            JOIN companies c
+                ON o.company_id = c.id
+            WHERE o.status = 'open'
+              AND c.is_approved = 1
               AND (
-                  opportunities.deadline IS NULL
-                  OR opportunities.deadline >= DATE('now')
+                  o.deadline IS NULL
+                  OR o.deadline >= DATE('now')
               )
-            ORDER BY opportunities.created_at DESC,
-                     opportunities.id DESC
+            ORDER BY o.created_at DESC, o.id DESC
         """).fetchall()
 
         return jsonify({
-            "opportunities": [
-                dict(opportunity) for opportunity in opportunities
-            ]
+            "opportunities": [dict(row) for row in rows]
         }), 200
 
     finally:
         connection.close()
 
 
-# API 3: STUDENT AND COMPANY REGISTRATION
+# =====================================================
+# API 3: REGISTRATION
+# =====================================================
+
 @app.route("/api/auth/register", methods=["POST"])
 def register():
     data = request.get_json(silent=True)
@@ -157,7 +317,7 @@ def register():
 
     if not all(
         isinstance(value, str)
-        for value in [full_name, email, password, role]
+        for value in (full_name, email, password, role)
     ):
         return jsonify({
             "error": "Invalid or missing fields"
@@ -237,7 +397,10 @@ def register():
         connection.close()
 
 
-# API 4: STUDENT AND COMPANY LOGIN
+# =====================================================
+# API 4: LOGIN
+# =====================================================
+
 @app.route("/api/auth/login", methods=["POST"])
 def login():
     data = request.get_json(silent=True)
@@ -284,7 +447,6 @@ def login():
                 "error": "Invalid email or password"
             }), 401
 
-        # Create authenticated session
         session.clear()
         session.permanent = True
         session["user_id"] = user["id"]
@@ -305,7 +467,10 @@ def login():
         connection.close()
 
 
-# API 5: GET CURRENT LOGGED-IN USER
+# =====================================================
+# API 5: CURRENT USER
+# =====================================================
+
 @app.route("/api/auth/me", methods=["GET"])
 @login_required
 def current_user():
@@ -313,19 +478,13 @@ def current_user():
 
     try:
         user = connection.execute("""
-            SELECT
-                id,
-                full_name,
-                email,
-                role,
-                is_verified
+            SELECT id, full_name, email, role, is_verified
             FROM users
             WHERE id = ?
         """, (session["user_id"],)).fetchone()
 
         if user is None or user["role"] != session.get("role"):
             session.clear()
-
             return jsonify({
                 "error": "Session is no longer valid"
             }), 401
@@ -344,7 +503,10 @@ def current_user():
         connection.close()
 
 
+# =====================================================
 # API 6: LOGOUT
+# =====================================================
+
 @app.route("/api/auth/logout", methods=["POST"])
 @login_required
 def logout():
@@ -355,7 +517,10 @@ def logout():
     }), 200
 
 
-# API 7: STUDENT-ONLY ENDPOINT
+# =====================================================
+# API 7: STUDENT DASHBOARD
+# =====================================================
+
 @app.route("/api/student/dashboard", methods=["GET"])
 @role_required("student")
 def student_dashboard():
@@ -365,7 +530,10 @@ def student_dashboard():
     }), 200
 
 
-# API 8: COMPANY-ONLY ENDPOINT
+# =====================================================
+# API 8: COMPANY DASHBOARD
+# =====================================================
+
 @app.route("/api/company/dashboard", methods=["GET"])
 @role_required("company")
 def company_dashboard():
@@ -375,6 +543,316 @@ def company_dashboard():
     }), 200
 
 
-# START FLASK SERVER
+# =====================================================
+# API 9: CREATE OPPORTUNITY
+# COMPANY ONLY
+# =====================================================
+
+@app.route("/api/opportunities", methods=["POST"])
+@role_required("company")
+def create_opportunity():
+    data = request.get_json(silent=True)
+
+    values, error = validate_opportunity(data)
+
+    if error:
+        return jsonify({"error": error}), 400
+
+    connection = get_db_connection()
+
+    try:
+        company = get_company(connection)
+
+        if company is None:
+            return jsonify({
+                "error": "Company profile not found"
+            }), 404
+
+        if not company["is_approved"]:
+            return jsonify({
+                "error": "Company approval is required"
+            }), 403
+
+        cursor = connection.execute("""
+            INSERT INTO opportunities (
+                company_id,
+                title,
+                description,
+                opportunity_type,
+                location,
+                deadline,
+                status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            company["id"],
+            values["title"],
+            values["description"],
+            values["opportunity_type"],
+            values["location"],
+            values["deadline"],
+            values["status"]
+        ))
+
+        opportunity_id = cursor.lastrowid
+        connection.commit()
+
+        opportunity = connection.execute("""
+            SELECT *
+            FROM opportunities
+            WHERE id = ?
+        """, (opportunity_id,)).fetchone()
+
+        return jsonify({
+            "message": "Opportunity created successfully",
+            "opportunity": dict(opportunity)
+        }), 201
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 10: COMPANY'S OWN OPPORTUNITIES
+# =====================================================
+
+@app.route("/api/company/opportunities", methods=["GET"])
+@role_required("company")
+def company_opportunities():
+    connection = get_db_connection()
+
+    try:
+        company = get_company(connection)
+
+        if company is None:
+            return jsonify({
+                "error": "Company profile not found"
+            }), 404
+
+        rows = connection.execute("""
+            SELECT *
+            FROM opportunities
+            WHERE company_id = ?
+            ORDER BY created_at DESC, id DESC
+        """, (company["id"],)).fetchall()
+
+        return jsonify({
+            "opportunities": [dict(row) for row in rows]
+        }), 200
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 11: GET SINGLE OPPORTUNITY
+# =====================================================
+
+@app.route("/api/opportunities/<int:opportunity_id>", methods=["GET"])
+def get_single_opportunity(opportunity_id):
+    connection = get_db_connection()
+
+    try:
+        opportunity = connection.execute("""
+            SELECT
+                o.*,
+                c.company_name,
+                c.user_id AS owner_user_id,
+                c.is_approved
+            FROM opportunities o
+            JOIN companies c ON o.company_id = c.id
+            WHERE o.id = ?
+        """, (opportunity_id,)).fetchone()
+
+        if opportunity is None:
+            return jsonify({
+                "error": "Opportunity not found"
+            }), 404
+
+        is_owner = (
+            session.get("user_id") ==
+            opportunity["owner_user_id"]
+        )
+
+        is_public = (
+            opportunity["is_approved"] == 1
+            and opportunity["status"] == "open"
+            and (
+                opportunity["deadline"] is None
+                or opportunity["deadline"] >= date.today().isoformat()
+            )
+        )
+
+        if not is_public and not is_owner:
+            return jsonify({
+                "error": "Opportunity not found"
+            }), 404
+
+        result = dict(opportunity)
+        result.pop("owner_user_id")
+        result.pop("is_approved")
+
+        return jsonify({
+            "opportunity": result
+        }), 200
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 12: UPDATE OPPORTUNITY
+# COMPANY OWNER ONLY
+# =====================================================
+
+@app.route("/api/opportunities/<int:opportunity_id>", methods=["PUT"])
+@role_required("company")
+def update_opportunity(opportunity_id):
+    data = request.get_json(silent=True)
+
+    connection = get_db_connection()
+
+    try:
+        company = get_company(connection)
+
+        if company is None:
+            return jsonify({
+                "error": "Company profile not found"
+            }), 404
+
+        opportunity = connection.execute("""
+            SELECT *
+            FROM opportunities
+            WHERE id = ?
+        """, (opportunity_id,)).fetchone()
+
+        if opportunity is None:
+            return jsonify({
+                "error": "Opportunity not found"
+            }), 404
+
+        if opportunity["company_id"] != company["id"]:
+            return jsonify({
+                "error": "You do not own this opportunity"
+            }), 403
+
+        if not company["is_approved"]:
+            return jsonify({
+                "error": "Company approval is required"
+            }), 403
+
+        values, error = validate_opportunity(
+            data,
+            existing=opportunity
+        )
+
+        if error:
+            return jsonify({"error": error}), 400
+
+        connection.execute("""
+            UPDATE opportunities
+            SET
+                title = ?,
+                description = ?,
+                opportunity_type = ?,
+                location = ?,
+                deadline = ?,
+                status = ?
+            WHERE id = ?
+              AND company_id = ?
+        """, (
+            values["title"],
+            values["description"],
+            values["opportunity_type"],
+            values["location"],
+            values["deadline"],
+            values["status"],
+            opportunity_id,
+            company["id"]
+        ))
+
+        connection.commit()
+
+        updated = connection.execute("""
+            SELECT *
+            FROM opportunities
+            WHERE id = ?
+        """, (opportunity_id,)).fetchone()
+
+        return jsonify({
+            "message": "Opportunity updated successfully",
+            "opportunity": dict(updated)
+        }), 200
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 13: DELETE OPPORTUNITY
+# COMPANY OWNER ONLY
+# =====================================================
+
+@app.route("/api/opportunities/<int:opportunity_id>", methods=["DELETE"])
+@role_required("company")
+def delete_opportunity(opportunity_id):
+    connection = get_db_connection()
+
+    try:
+        company = get_company(connection)
+
+        if company is None:
+            return jsonify({
+                "error": "Company profile not found"
+            }), 404
+
+        opportunity = connection.execute("""
+            SELECT id, company_id
+            FROM opportunities
+            WHERE id = ?
+        """, (opportunity_id,)).fetchone()
+
+        if opportunity is None:
+            return jsonify({
+                "error": "Opportunity not found"
+            }), 404
+
+        if opportunity["company_id"] != company["id"]:
+            return jsonify({
+                "error": "You do not own this opportunity"
+            }), 403
+
+        application_count = connection.execute("""
+            SELECT COUNT(*) AS total
+            FROM applications
+            WHERE opportunity_id = ?
+        """, (opportunity_id,)).fetchone()["total"]
+
+        if application_count > 0:
+            return jsonify({
+                "error": (
+                    "Cannot delete an opportunity with applications. "
+                    "Close the opportunity instead."
+                )
+            }), 409
+
+        connection.execute("""
+            DELETE FROM opportunities
+            WHERE id = ?
+              AND company_id = ?
+        """, (opportunity_id, company["id"]))
+
+        connection.commit()
+
+        return "", 204
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# START DEVELOPMENT SERVER
+# =====================================================
+
 if __name__ == "__main__":
     app.run(debug=True)
