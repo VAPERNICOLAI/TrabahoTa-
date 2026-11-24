@@ -1,14 +1,15 @@
 
 import os
 import sqlite3
-from datetime import date, timedelta
+import psycopg
+from datetime import date, datetime, timedelta
 from functools import wraps
 
 from flask import Flask, jsonify, request, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from database import init_db, get_db_connection
+from database import init_db, get_db_connection, USE_POSTGRES
 
 
 # =====================================================
@@ -64,6 +65,46 @@ CORS(
 
 init_db()
 
+# =====================================================
+# DATABASE COMPATIBILITY HELPERS
+# =====================================================
+
+DATABASE_ERRORS = (sqlite3.Error, psycopg.Error)
+
+INTEGRITY_ERRORS = (
+    sqlite3.IntegrityError,
+    psycopg.IntegrityError
+)
+
+
+def execute_query(connection, query, params=()):
+    if USE_POSTGRES:
+        query = query.replace("?", "%s")
+        query = query.replace("DATE('now')", "CURRENT_DATE")
+
+    return connection.execute(query, params)
+
+
+def serialize_row(row):
+    result = dict(row)
+
+    for key, value in result.items():
+        if isinstance(value, (date, datetime)):
+            result[key] = value.isoformat()
+
+    return result
+
+
+def insert_and_get_id(connection, query, params=()):
+    if USE_POSTGRES:
+        query = query.strip().rstrip(";") + " RETURNING id"
+        cursor = execute_query(connection, query, params)
+        return cursor.fetchone()["id"]
+
+    cursor = execute_query(connection, query, params)
+    return cursor.lastrowid
+
+
 
 # =====================================================
 # AUTHENTICATION HELPERS
@@ -94,7 +135,7 @@ def role_required(required_role):
             connection = get_db_connection()
 
             try:
-                user = connection.execute("""
+                user = execute_query(connection, """
                     SELECT role
                     FROM users
                     WHERE id = ?
@@ -121,7 +162,7 @@ def role_required(required_role):
 
 
 def get_company(connection):
-    return connection.execute("""
+    return execute_query(connection, """
         SELECT id, user_id, company_name, is_approved
         FROM companies
         WHERE user_id = ?
@@ -192,7 +233,7 @@ def validate_opportunity(data, existing=None):
             "status": "open"
         }
     else:
-        values = dict(existing)
+        values = serialize_row(existing)
 
     values.update(data)
 
@@ -264,9 +305,9 @@ def health_check():
     connection = get_db_connection()
 
     try:
-        connection.execute("SELECT 1")
+        execute_query(connection, "SELECT 1")
         database_status = "connected"
-    except sqlite3.Error:
+    except DATABASE_ERRORS:
         database_status = "error"
     finally:
         connection.close()
@@ -286,7 +327,7 @@ def get_opportunities():
     connection = get_db_connection()
 
     try:
-        rows = connection.execute("""
+        rows = execute_query(connection, """
             SELECT
                 o.id,
                 o.title,
@@ -309,7 +350,7 @@ def get_opportunities():
         """).fetchall()
 
         return jsonify({
-            "opportunities": [dict(row) for row in rows]
+            "opportunities": [serialize_row(row) for row in rows]
         }), 200
 
     finally:
@@ -378,7 +419,7 @@ def register():
     connection = get_db_connection()
 
     try:
-        cursor = connection.execute("""
+        inserted_id = insert_and_get_id(connection, """
             INSERT INTO users
                 (full_name, email, password_hash, role)
             VALUES (?, ?, ?, ?)
@@ -389,10 +430,10 @@ def register():
             role
         ))
 
-        user_id = cursor.lastrowid
+        user_id = inserted_id
 
         if role == "company":
-            connection.execute("""
+            execute_query(connection, """
                 INSERT INTO companies (user_id, company_name)
                 VALUES (?, ?)
             """, (user_id, company_name.strip()))
@@ -406,7 +447,7 @@ def register():
             "verified": False
         }), 201
 
-    except sqlite3.IntegrityError:
+    except INTEGRITY_ERRORS:
         connection.rollback()
 
         return jsonify({
@@ -448,7 +489,7 @@ def login():
     connection = get_db_connection()
 
     try:
-        user = connection.execute("""
+        user = execute_query(connection, """
             SELECT
                 id,
                 full_name,
@@ -497,7 +538,7 @@ def current_user():
     connection = get_db_connection()
 
     try:
-        user = connection.execute("""
+        user = execute_query(connection, """
             SELECT id, full_name, email, role, is_verified
             FROM users
             WHERE id = ?
@@ -591,7 +632,7 @@ def create_opportunity():
                 "error": "Company approval is required"
             }), 403
 
-        cursor = connection.execute("""
+        inserted_id = insert_and_get_id(connection, """
             INSERT INTO opportunities (
                 company_id,
                 title,
@@ -612,10 +653,10 @@ def create_opportunity():
             values["status"]
         ))
 
-        opportunity_id = cursor.lastrowid
+        opportunity_id = inserted_id
         connection.commit()
 
-        opportunity = connection.execute("""
+        opportunity = execute_query(connection, """
             SELECT *
             FROM opportunities
             WHERE id = ?
@@ -623,7 +664,7 @@ def create_opportunity():
 
         return jsonify({
             "message": "Opportunity created successfully",
-            "opportunity": dict(opportunity)
+            "opportunity": serialize_row(opportunity)
         }), 201
 
     finally:
@@ -647,7 +688,7 @@ def company_opportunities():
                 "error": "Company profile not found"
             }), 404
 
-        rows = connection.execute("""
+        rows = execute_query(connection, """
             SELECT *
             FROM opportunities
             WHERE company_id = ?
@@ -655,7 +696,7 @@ def company_opportunities():
         """, (company["id"],)).fetchall()
 
         return jsonify({
-            "opportunities": [dict(row) for row in rows]
+            "opportunities": [serialize_row(row) for row in rows]
         }), 200
 
     finally:
@@ -671,7 +712,7 @@ def get_single_opportunity(opportunity_id):
     connection = get_db_connection()
 
     try:
-        opportunity = connection.execute("""
+        opportunity = execute_query(connection, """
             SELECT
                 o.*,
                 c.company_name,
@@ -697,7 +738,7 @@ def get_single_opportunity(opportunity_id):
             and opportunity["status"] == "open"
             and (
                 opportunity["deadline"] is None
-                or opportunity["deadline"] >= date.today().isoformat()
+                or str(opportunity["deadline"]) >= date.today().isoformat()
             )
         )
 
@@ -706,7 +747,7 @@ def get_single_opportunity(opportunity_id):
                 "error": "Opportunity not found"
             }), 404
 
-        result = dict(opportunity)
+        result = serialize_row(opportunity)
         result.pop("owner_user_id")
         result.pop("is_approved")
 
@@ -736,7 +777,7 @@ def update_opportunity(opportunity_id):
                 "error": "Company profile not found"
             }), 404
 
-        opportunity = connection.execute("""
+        opportunity = execute_query(connection, """
             SELECT *
             FROM opportunities
             WHERE id = ?
@@ -765,7 +806,7 @@ def update_opportunity(opportunity_id):
         if error:
             return jsonify({"error": error}), 400
 
-        connection.execute("""
+        execute_query(connection, """
             UPDATE opportunities
             SET
                 title = ?,
@@ -789,7 +830,7 @@ def update_opportunity(opportunity_id):
 
         connection.commit()
 
-        updated = connection.execute("""
+        updated = execute_query(connection, """
             SELECT *
             FROM opportunities
             WHERE id = ?
@@ -797,7 +838,7 @@ def update_opportunity(opportunity_id):
 
         return jsonify({
             "message": "Opportunity updated successfully",
-            "opportunity": dict(updated)
+            "opportunity": serialize_row(updated)
         }), 200
 
     finally:
@@ -821,7 +862,7 @@ def delete_opportunity(opportunity_id):
                 "error": "Company profile not found"
             }), 404
 
-        opportunity = connection.execute("""
+        opportunity = execute_query(connection, """
             SELECT id, company_id
             FROM opportunities
             WHERE id = ?
@@ -837,7 +878,7 @@ def delete_opportunity(opportunity_id):
                 "error": "You do not own this opportunity"
             }), 403
 
-        application_count = connection.execute("""
+        application_count = execute_query(connection, """
             SELECT COUNT(*) AS total
             FROM applications
             WHERE opportunity_id = ?
@@ -851,7 +892,7 @@ def delete_opportunity(opportunity_id):
                 )
             }), 409
 
-        connection.execute("""
+        execute_query(connection, """
             DELETE FROM opportunities
             WHERE id = ?
               AND company_id = ?
@@ -875,7 +916,7 @@ def apply_for_opportunity(opportunity_id):
     connection = get_db_connection()
 
     try:
-        opportunity = connection.execute("""
+        opportunity = execute_query(connection, """
             SELECT o.id
             FROM opportunities o
             JOIN companies c ON o.company_id = c.id
@@ -893,7 +934,7 @@ def apply_for_opportunity(opportunity_id):
                 "error": "Opportunity is unavailable or closed"
             }), 404
 
-        existing_application = connection.execute("""
+        existing_application = execute_query(connection, """
             SELECT id
             FROM applications
             WHERE student_id = ?
@@ -908,7 +949,7 @@ def apply_for_opportunity(opportunity_id):
                 "error": "You have already applied for this opportunity"
             }), 409
 
-        cursor = connection.execute("""
+        inserted_id = insert_and_get_id(connection, """
             INSERT INTO applications (
                 student_id,
                 opportunity_id,
@@ -925,14 +966,14 @@ def apply_for_opportunity(opportunity_id):
         return jsonify({
             "message": "Application submitted successfully",
             "application": {
-                "id": cursor.lastrowid,
+                "id": inserted_id,
                 "student_id": session["user_id"],
                 "opportunity_id": opportunity_id,
                 "status": "submitted"
             }
         }), 201
 
-    except sqlite3.IntegrityError:
+    except INTEGRITY_ERRORS:
         connection.rollback()
 
         return jsonify({
@@ -953,7 +994,7 @@ def get_student_applications():
     connection = get_db_connection()
 
     try:
-        rows = connection.execute("""
+        rows = execute_query(connection, """
             SELECT
                 a.id,
                 a.student_id,
@@ -973,7 +1014,7 @@ def get_student_applications():
             ORDER BY a.applied_at DESC, a.id DESC
         """, (session["user_id"],)).fetchall()
 
-        applications = [dict(row) for row in rows]
+        applications = [serialize_row(row) for row in rows]
 
         pending_statuses = {
             "submitted",
@@ -1015,7 +1056,7 @@ def get_company_applications():
                 "error": "Company profile not found"
             }), 404
 
-        rows = connection.execute("""
+        rows = execute_query(connection, """
             SELECT
                 a.id,
                 a.student_id,
@@ -1032,7 +1073,7 @@ def get_company_applications():
             ORDER BY a.applied_at DESC, a.id DESC
         """, (company["id"],)).fetchall()
 
-        applications = [dict(row) for row in rows]
+        applications = [serialize_row(row) for row in rows]
 
         return jsonify({
             "applications": applications,
@@ -1089,7 +1130,7 @@ def update_application_status(application_id):
                 "error": "Company profile not found"
             }), 404
 
-        application = connection.execute("""
+        application = execute_query(connection, """
             SELECT a.id, a.status
             FROM applications a
             JOIN opportunities o ON a.opportunity_id = o.id
@@ -1110,7 +1151,7 @@ def update_application_status(application_id):
                 "error": "Company approval is required"
             }), 403
 
-        connection.execute("""
+        execute_query(connection, """
             UPDATE applications
             SET status = ?
             WHERE id = ?
