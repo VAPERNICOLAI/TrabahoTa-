@@ -1,5 +1,5 @@
 
-const LOGIN_API = "http://127.0.0.1:5000/api/auth/login";
+const LOGIN_API = (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://127.0.0.1:5000" : "") + "/api/auth/login";
 
 document.addEventListener("DOMContentLoaded", function () {
     const form = document.getElementById("login-form");
