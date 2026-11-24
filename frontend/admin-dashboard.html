@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | TrabahoTa!</title>
+    <link rel="stylesheet" href="css/admin-dashboard.css">
+    <script src="js/admin-dashboard.js" defer></script>
+</head>
+<body>
+
+
+    <div id="loading-screen" role="status">
+        Loading Administration Portal...
+    </div>
+
+
+    <div id="admin-app" class="admin-layout" hidden>
+
+
+        <aside class="sidebar">
+            <div class="brand">
+                <h1>TrabahoTa!</h1>
+                <p>From Tambay to Trabaho</p>
+                <span class="admin-label">Administration Portal</span>
+            </div>
+
+
+            <nav class="sidebar-nav" aria-label="Administration">
+                <p class="nav-label">MANAGEMENT</p>
+
+
+                <button class="nav-item active" data-page="dashboard">
+                    Dashboard
+                </button>
+
+
+                <button class="nav-item" data-page="companies">
+                    Company Management
+                </button>
+
+
+                <button class="nav-item" data-page="students">
+                    Student Management
+                </button>
+
+
+                <button class="nav-item" data-page="opportunities">
+                    Opportunities
+                </button>
+
+
+                <button class="nav-item" data-page="applications">
+                    Applications
+                </button>
+            </nav>
+
+
+            <div class="sidebar-footer">
+                <button id="logout-button" class="logout-button">
+                    Logout
+                </button>
+                <p>TrabahoTa! &copy; 2026</p>
+            </div>
+        </aside>
+
+
+        <main class="main-content">
+
+
+            <header class="topbar">
+                <div>
+                    <h2 id="page-title">Dashboard Overview</h2>
+                    <p>Xavier University Administration</p>
+                </div>
+
+
+                <div class="admin-profile">
+                    <div class="avatar">A</div>
+                    <div>
+                        <strong id="admin-name">Administrator</strong>
+                        <span>System Administrator</span>
+                    </div>
+                </div>
+            </header>
+
+
+            <div id="notification" role="status" hidden></div>
+
+
+            <!-- DASHBOARD -->
+            <section id="dashboard-page" class="page-section">
+
+
+                <div class="welcome">
+                    <h1>Welcome, Administrator!</h1>
+                    <p>Manage users, companies, opportunities,
+                        and applications across TrabahoTa!</p>
+                </div>
+
+
+                <div class="stats-grid">
+
+
+                    <article class="stat-card">
+                        <h3>Total Students</h3>
+                        <strong id="total_students">0</strong>
+                    </article>
+
+
+                    <article class="stat-card">
+                        <h3>Verified Students</h3>
+                        <strong id="verified_students">0</strong>
+                    </article>
+
+
+                    <article class="stat-card">
+                        <h3>Total Companies</h3>
+                        <strong id="total_companies">0</strong>
+                    </article>
+
+
+                    <article class="stat-card">
+                        <h3>Approved Companies</h3>
+                        <strong id="approved_companies">0</strong>
+                    </article>
+
+
+                    <article class="stat-card pending">
+                        <h3>Pending Companies</h3>
+                        <strong id="pending_companies">0</strong>
+                    </article>
+
+
+                    <article class="stat-card">
+                        <h3>Total Opportunities</h3>
+                        <strong id="total_opportunities">0</strong>
+                    </article>
+
+
+                    <article class="stat-card">
+                        <h3>Opportunities Marked Open</h3>
+                        <strong id="open_opportunities">0</strong>
+                    </article>
+
+
+                    <article class="stat-card">
+                        <h3>Total Applications</h3>
+                        <strong id="total_applications">0</strong>
+                    </article>
+
+
+                </div>
+
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>Pending Company Approvals</h2>
+                        <button class="primary" data-page="companies">
+                            Manage Companies
+                        </button>
+                    </div>
+
+
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Company</th>
+                                    <th>Email</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pending-companies-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+
+            </section>
+
+
+            <!-- COMPANY MANAGEMENT -->
+            <section id="companies-page" class="page-section" hidden>
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>Company Management</h2>
+                        <input type="search" id="company-search"
+                            placeholder="Search companies..."
+                            aria-label="Search companies">
+                    </div>
+
+
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Company Name</th>
+                                    <th>Representative</th>
+                                    <th>Email</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="companies-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- STUDENT MANAGEMENT -->
+            <section id="students-page" class="page-section" hidden>
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>Student Management</h2>
+                        <input type="search" id="student-search"
+                            placeholder="Search students..."
+                            aria-label="Search students">
+                    </div>
+
+
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Full Name</th>
+                                    <th>Email</th>
+                                    <th>Registered</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="students-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- OPPORTUNITIES -->
+            <section id="opportunities-page" class="page-section" hidden>
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>Opportunity Monitoring</h2>
+                        <input type="search" id="opportunity-search"
+                            placeholder="Search opportunities..."
+                            aria-label="Search opportunities">
+                    </div>
+
+
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Title</th>
+                                    <th>Company</th>
+                                    <th>Type</th>
+                                    <th>Location</th>
+                                    <th>Deadline</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="opportunities-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- APPLICATIONS -->
+            <section id="applications-page" class="page-section" hidden>
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>Application Monitoring</h2>
+                        <input type="search" id="application-search"
+                            placeholder="Search applications..."
+                            aria-label="Search applications">
+                    </div>
+
+
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Student</th>
+                                    <th>Email</th>
+                                    <th>Opportunity</th>
+                                    <th>Company</th>
+                                    <th>Date Applied</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="applications-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+
+        </main>
+    </div>
+
+
+</body>
+</html>

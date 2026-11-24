@@ -41,7 +41,7 @@ app.config["SECRET_KEY"] = (
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = (
-    "None" if IS_PRODUCTION else "Lax"
+    "Lax"
 )
 app.config["SESSION_COOKIE_SECURE"] = IS_PRODUCTION
 
@@ -49,19 +49,53 @@ app.config["SESSION_COOKIE_SECURE"] = IS_PRODUCTION
 # CORS CONFIGURATION
 # =====================================================
 
+
+ALLOWED_ORIGINS = (
+    ["https://trabahota.netlify.app"]
+    if IS_PRODUCTION else
+    [
+        "http://127.0.0.1:5500",
+        "http://localhost:5500"
+    ]
+)
+
+
 CORS(
     app,
     resources={
         r"/api/*": {
-            "origins": [
-                "http://127.0.0.1:5500",
-                "http://localhost:5500",
-                "https://trabahota.netlify.app"
-            ]
+            "origins": ALLOWED_ORIGINS
         }
     },
     supports_credentials=True
 )
+
+
+
+
+
+@app.before_request
+def protect_against_csrf():
+    if not request.path.startswith("/api/"):
+        return None
+
+
+    if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+        return None
+
+
+    origin = request.headers.get("Origin")
+
+
+    if origin not in ALLOWED_ORIGINS:
+        return jsonify({
+            "error": "Request origin is not allowed"
+        }), 403
+
+
+    return None
+
+
 
 init_db()
 
@@ -878,6 +912,11 @@ def delete_opportunity(opportunity_id):
                 "error": "You do not own this opportunity"
             }), 403
 
+        if not company["is_approved"]:
+            return jsonify({
+                "error": "Company approval is required"
+            }), 403
+
         application_count = execute_query(connection, """
             SELECT COUNT(*) AS total
             FROM applications
@@ -916,6 +955,18 @@ def apply_for_opportunity(opportunity_id):
     connection = get_db_connection()
 
     try:
+        student = execute_query(connection, """
+            SELECT is_verified
+            FROM users
+            WHERE id = ?
+              AND role = 'student'
+        """, (session["user_id"],)).fetchone()
+
+        if student is None or student["is_verified"] != 1:
+            return jsonify({
+                "error": "Your student account must be verified by an administrator before applying."
+            }), 403
+
         opportunity = execute_query(connection, """
             SELECT o.id
             FROM opportunities o
@@ -1173,6 +1224,342 @@ def update_application_status(application_id):
         # =====================================================
 # START DEVELOPMENT SERVER
 # =====================================================
+
+
+
+
+# =====================================================
+# ADMIN REST API
+# =====================================================
+
+
+# API 18: ADMIN DASHBOARD
+
+
+@app.route("/api/admin/dashboard", methods=["GET"])
+@role_required("admin")
+def admin_dashboard():
+    connection = get_db_connection()
+
+
+    try:
+        queries = {
+            "total_students": """
+                SELECT COUNT(*) AS total FROM users
+                WHERE role = 'student'
+            """,
+            "verified_students": """
+                SELECT COUNT(*) AS total FROM users
+                WHERE role = 'student' AND is_verified = 1
+            """,
+            "total_companies": """
+                SELECT COUNT(*) AS total FROM companies
+            """,
+            "approved_companies": """
+                SELECT COUNT(*) AS total FROM companies
+                WHERE is_approved = 1
+            """,
+            "pending_companies": """
+                SELECT COUNT(*) AS total FROM companies
+                WHERE is_approved = 0
+            """,
+            "total_opportunities": """
+                SELECT COUNT(*) AS total FROM opportunities
+            """,
+            "open_opportunities": """
+                SELECT COUNT(*) AS total FROM opportunities
+                WHERE status = 'open'
+            """,
+            "total_applications": """
+                SELECT COUNT(*) AS total FROM applications
+            """
+        }
+
+
+        stats = {}
+
+
+        for key, query in queries.items():
+            stats[key] = execute_query(
+                connection, query
+            ).fetchone()["total"]
+
+
+        return jsonify({"statistics": stats}), 200
+
+
+    finally:
+        connection.close()
+
+
+
+
+# API 19: LIST COMPANIES
+
+
+@app.route("/api/admin/companies", methods=["GET"])
+@role_required("admin")
+def admin_companies():
+    connection = get_db_connection()
+
+
+    try:
+        rows = execute_query(connection, """
+            SELECT
+                c.id,
+                c.company_name,
+                c.description,
+                c.is_approved,
+                u.full_name,
+                u.email,
+                u.created_at
+            FROM companies c
+            JOIN users u ON c.user_id = u.id
+            ORDER BY c.id DESC
+        """).fetchall()
+
+
+        return jsonify({
+            "companies": [serialize_row(row) for row in rows]
+        }), 200
+
+
+    finally:
+        connection.close()
+
+
+
+
+# API 20: COMPANY APPROVAL
+
+
+@app.route(
+    "/api/admin/companies/<int:company_id>/approval",
+    methods=["PATCH"]
+)
+@role_required("admin")
+def admin_company_approval(company_id):
+    data = request.get_json(silent=True)
+
+
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON object required"}), 400
+
+
+    approved = data.get("is_approved")
+
+
+    if type(approved) is not bool:
+        return jsonify({
+            "error": "is_approved must be true or false"
+        }), 400
+
+
+    connection = get_db_connection()
+
+
+    try:
+        cursor = execute_query(connection, """
+            UPDATE companies
+            SET is_approved = ?
+            WHERE id = ?
+        """, (int(approved), company_id))
+
+
+        if cursor.rowcount == 0:
+            connection.rollback()
+            return jsonify({"error": "Company not found"}), 404
+
+
+        connection.commit()
+
+
+        return jsonify({
+            "message": "Company approval updated successfully",
+            "company": {
+                "id": company_id,
+                "is_approved": approved
+            }
+        }), 200
+
+
+    finally:
+        connection.close()
+
+
+
+
+# API 21: LIST STUDENTS
+
+
+@app.route("/api/admin/students", methods=["GET"])
+@role_required("admin")
+def admin_students():
+    connection = get_db_connection()
+
+
+    try:
+        rows = execute_query(connection, """
+            SELECT
+                id,
+                full_name,
+                email,
+                is_verified,
+                created_at
+            FROM users
+            WHERE role = 'student'
+            ORDER BY id DESC
+        """).fetchall()
+
+
+        return jsonify({
+            "students": [serialize_row(row) for row in rows]
+        }), 200
+
+
+    finally:
+        connection.close()
+
+
+
+
+# API 22: STUDENT VERIFICATION
+
+
+@app.route(
+    "/api/admin/students/<int:student_id>/verification",
+    methods=["PATCH"]
+)
+@role_required("admin")
+def admin_student_verification(student_id):
+    data = request.get_json(silent=True)
+
+
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON object required"}), 400
+
+
+    verified = data.get("is_verified")
+
+
+    if type(verified) is not bool:
+        return jsonify({
+            "error": "is_verified must be true or false"
+        }), 400
+
+
+    connection = get_db_connection()
+
+
+    try:
+        cursor = execute_query(connection, """
+            UPDATE users
+            SET is_verified = ?
+            WHERE id = ? AND role = 'student'
+        """, (int(verified), student_id))
+
+
+        if cursor.rowcount == 0:
+            connection.rollback()
+            return jsonify({"error": "Student not found"}), 404
+
+
+        connection.commit()
+
+
+        return jsonify({
+            "message": "Student verification updated successfully",
+            "student": {
+                "id": student_id,
+                "is_verified": verified
+            }
+        }), 200
+
+
+    finally:
+        connection.close()
+
+
+
+
+# API 23: MONITOR OPPORTUNITIES
+
+
+@app.route("/api/admin/opportunities", methods=["GET"])
+@role_required("admin")
+def admin_opportunities():
+    connection = get_db_connection()
+
+
+    try:
+        rows = execute_query(connection, """
+            SELECT
+                o.id,
+                o.title,
+                o.opportunity_type,
+                o.location,
+                o.deadline,
+                o.status,
+                o.created_at,
+                c.company_name
+            FROM opportunities o
+            JOIN companies c ON o.company_id = c.id
+            ORDER BY o.id DESC
+        """).fetchall()
+
+
+        return jsonify({
+            "opportunities": [
+                serialize_row(row) for row in rows
+            ]
+        }), 200
+
+
+    finally:
+        connection.close()
+
+
+
+
+# API 24: MONITOR APPLICATIONS
+
+
+@app.route("/api/admin/applications", methods=["GET"])
+@role_required("admin")
+def admin_applications():
+    connection = get_db_connection()
+
+
+    try:
+        rows = execute_query(connection, """
+            SELECT
+                a.id,
+                a.status,
+                a.applied_at,
+                u.full_name AS student_name,
+                u.email AS student_email,
+                o.title AS opportunity_title,
+                c.company_name
+            FROM applications a
+            JOIN users u ON a.student_id = u.id
+            JOIN opportunities o ON a.opportunity_id = o.id
+            JOIN companies c ON o.company_id = c.id
+            ORDER BY a.id DESC
+        """).fetchall()
+
+
+        return jsonify({
+            "applications": [
+                serialize_row(row) for row in rows
+            ]
+        }), 200
+
+
+    finally:
+        connection.close()
+
+
+
 
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)

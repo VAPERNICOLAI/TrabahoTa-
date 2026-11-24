@@ -65,6 +65,10 @@ document.addEventListener("DOMContentLoaded", function () {
             } else if (result.user.role === "company") {
                 window.location.replace("company-dashboard.html");
 
+
+            } else if (result.user.role === "admin") {
+                window.location.replace("admin-dashboard.html");
+
             } else {
                 showMessage(
                     "Login successful, but the account role is unsupported.",

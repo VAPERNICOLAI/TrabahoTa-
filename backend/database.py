@@ -6,7 +6,12 @@ import psycopg
 from pathlib import Path
 from psycopg.rows import dict_row
 
-DATABASE_PATH = Path(__file__).resolve().parent / "trabahota.db"
+DATABASE_PATH = Path(
+    os.environ.get(
+        "SQLITE_DATABASE_PATH",
+        str(Path(__file__).resolve().parent / "trabahota.db")
+    )
+)
 DATABASE_URL = os.environ.get("DATABASE_URL")
 USE_POSTGRES = bool(DATABASE_URL)
 
@@ -47,7 +52,7 @@ def init_db():
                 email TEXT NOT NULL UNIQUE,
                 password_hash TEXT NOT NULL,
                 role TEXT NOT NULL CHECK (
-                    role IN ('student', 'company')
+                    role IN ('student', 'company', 'admin')
                 ),
                 is_verified INTEGER NOT NULL DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
