@@ -1,0 +1,53 @@
+name: PostgreSQL Diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  database-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+
+      - name: Verify database connection
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          PGCONNECT_TIMEOUT: "10"
+          PGSSLMODE: require
+          PGGSSENCMODE: disable
+        run: |
+          if [ -z "$PROD_DATABASE_URL" ]; then
+            echo "ERROR: Database secret missing."
+            exit 1
+          fi
+
+          psql "$PROD_DATABASE_URL" -X -w \
+            -v ON_ERROR_STOP=1 \
+            -P pager=off <<'SQL'
+          BEGIN READ ONLY;
+
+          SELECT current_database(), current_user;
+
+          SELECT
+            has_schema_privilege(
+              current_user, 'public', 'USAGE'
+            ) AS schema_usage,
+            has_schema_privilege(
+              current_user, 'public', 'CREATE'
+            ) AS schema_create,
+            has_table_privilege(
+              current_user, 'public.users', 'REFERENCES'
+            ) AS users_references;
+
+          COMMIT;
+          SQL
+
+          echo "SUCCESS: PostgreSQL diagnostic completed."
