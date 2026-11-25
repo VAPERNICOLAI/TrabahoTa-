@@ -284,6 +284,7 @@
         }
     </style>
     <link rel="stylesheet" href="css/student-profile.css">
+    <link rel="stylesheet" href="css/student-resume.css">
 </head>
 
 <body>
@@ -498,6 +499,134 @@
 
             </form>
 
+            <!-- STUDENT RESUME MANAGEMENT -->
+            <div class="resume-panel" id="student-resume-panel">
+
+                <div class="resume-heading">
+                    <div>
+                        <h2>My Résumé</h2>
+                        <p>Manage your professional résumé.</p>
+                    </div>
+                    <span class="resume-format-badge">PDF</span>
+                </div>
+
+                <form id="student-resume-form">
+
+                    <div class="resume-upload-area">
+
+                        <svg class="resume-upload-icon"
+                             width="42" height="42"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="1.5"
+                             aria-hidden="true">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5
+                                     a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+
+                        <h3>Upload your résumé</h3>
+
+                        <p>PDF only · Maximum 2 MB · Up to 30 pages</p>
+
+                        <input type="file"
+                               id="resume-file-input"
+                               name="resume"
+                               accept=".pdf,application/pdf"
+                               hidden>
+
+                        <button type="button"
+                                class="resume-button resume-primary"
+                                id="resume-choose-btn">
+                            Choose PDF File
+                        </button>
+
+                        <p id="resume-selected-file"
+                           class="resume-selected-file"
+                           aria-live="polite">
+                            No file selected
+                        </p>
+
+                        <button type="submit"
+                                class="resume-button resume-primary"
+                                id="resume-upload-btn"
+                                disabled>
+                            Upload Résumé
+                        </button>
+
+                    </div>
+
+                </form>
+
+                <div id="resume-current-card"
+                     class="resume-current-card"
+                     hidden>
+
+                    <div class="resume-file-details">
+
+                        <span class="resume-pdf-icon">PDF</span>
+
+                        <div class="resume-file-info">
+                            <strong id="resume-file-name">—</strong>
+                            <p id="resume-file-size">—</p>
+                            <p id="resume-updated-at">—</p>
+                        </div>
+
+                        <span class="resume-uploaded-badge">
+                            Uploaded
+                        </span>
+
+                    </div>
+
+                    <div class="resume-actions">
+
+                        <button type="button"
+                                class="resume-button resume-secondary"
+                                id="resume-download-btn">
+                            Download
+                        </button>
+
+                        <button type="button"
+                                class="resume-button resume-secondary"
+                                id="resume-replace-btn">
+                            Replace
+                        </button>
+
+                        <button type="button"
+                                class="resume-button resume-danger"
+                                id="resume-delete-btn">
+                            Remove
+                        </button>
+
+                    </div>
+
+                </div>
+
+                <div id="resume-empty-state"
+                     class="resume-empty-state">
+                    No résumé uploaded yet.
+                </div>
+
+                <p id="resume-message"
+                   class="resume-message"
+                   role="status"
+                   aria-live="polite"></p>
+
+                <div class="resume-privacy-note">
+                    <strong>Privacy Notice</strong>
+                    <p>
+                        Your current résumé is accessible to approved
+                        companies whose opportunities you have applied for.
+                        Replacing or removing your résumé changes its
+                        availability to those companies.
+                    </p>
+                </div>
+
+            </div>
+
+
         </section>
 
     </main>
@@ -550,6 +679,7 @@
     </div>
 
     <script src="js/student-dashboard.js"></script>
+    <script src="js/student-resume.js"></script>
 
 </body>
 </html>

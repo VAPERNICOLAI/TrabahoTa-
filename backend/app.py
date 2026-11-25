@@ -4,10 +4,15 @@ import sqlite3
 import psycopg
 from datetime import date, datetime, timedelta
 from functools import wraps
+from io import BytesIO
 
-from flask import Flask, jsonify, request, session
+from flask import Flask, jsonify, request, session, send_file
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+from werkzeug.exceptions import RequestEntityTooLarge
+from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 
 from database import init_db, get_db_connection, USE_POSTGRES
 
@@ -1823,6 +1828,433 @@ def get_applicant_student_profile(application_id):
         return jsonify({
             "profile": result
         }), 200
+
+    finally:
+        connection.close()
+
+
+
+# =====================================================
+# RESUME CONFIGURATION AND SECURITY HELPERS
+# =====================================================
+
+MAX_RESUME_SIZE = 2 * 1024 * 1024
+MAX_RESUME_REQUEST_SIZE = 3 * 1024 * 1024
+MAX_RESUME_PAGES = 30
+
+
+@app.before_request
+def limit_resume_upload_request():
+    if (
+        request.path == "/api/student/resume"
+        and request.method == "PUT"
+    ):
+        request.max_content_length = MAX_RESUME_REQUEST_SIZE
+
+        if (
+            request.content_length is not None
+            and request.content_length > MAX_RESUME_REQUEST_SIZE
+        ):
+            return jsonify({
+                "error": "Upload request is too large"
+            }), 413
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_request_too_large(error):
+    return jsonify({
+        "error": "Upload request is too large"
+    }), 413
+
+
+@app.after_request
+def protect_resume_responses(response):
+    if (
+        request.path.startswith("/api/student/resume")
+        or (
+            request.path.startswith("/api/company/applications/")
+            and "/resume" in request.path
+        )
+    ):
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+
+    return response
+
+
+def validate_resume_upload(upload):
+    if upload is None or not upload.filename:
+        return None, "A PDF resume is required", 400
+
+    filename = secure_filename(upload.filename)
+
+    if (
+        not filename
+        or len(filename) > 255
+        or not filename.lower().endswith(".pdf")
+    ):
+        return None, "Only PDF files are allowed", 400
+
+    if upload.mimetype != "application/pdf":
+        return None, "Invalid PDF content type", 415
+
+    file_data = upload.stream.read(MAX_RESUME_SIZE + 1)
+    file_size = len(file_data)
+
+    if file_size == 0:
+        return None, "The uploaded file is empty", 400
+
+    if file_size > MAX_RESUME_SIZE:
+        return None, "Resume must not exceed 2 MB", 413
+
+    if not file_data.startswith(b"%PDF-"):
+        return None, "Invalid PDF file signature", 400
+
+    try:
+        reader = PdfReader(BytesIO(file_data), strict=True)
+
+        if reader.is_encrypted:
+            return None, "Encrypted PDFs are not allowed", 400
+
+        page_count = len(reader.pages)
+
+        if not 1 <= page_count <= MAX_RESUME_PAGES:
+            return None, "Resume must contain 1 to 30 pages", 400
+
+    except Exception:
+        return None, "Invalid or unreadable PDF document", 400
+
+    return {
+        "file_name": filename,
+        "mime_type": "application/pdf",
+        "file_size": file_size,
+        "file_data": file_data
+    }, None, None
+
+
+def get_resume_metadata(connection, user_id):
+    row = execute_query(connection, """
+        SELECT
+            file_name,
+            mime_type,
+            file_size,
+            uploaded_at,
+            updated_at
+        FROM student_resumes
+        WHERE user_id = ?
+    """, (user_id,)).fetchone()
+
+    return serialize_row(row) if row is not None else None
+
+
+def create_resume_download(row):
+    response = send_file(
+        BytesIO(bytes(row["file_data"])),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=row["file_name"],
+        conditional=False,
+        etag=False,
+        max_age=0
+    )
+
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+
+    return response
+
+
+
+# =====================================================
+# API 28: GET STUDENT RESUME METADATA
+# =====================================================
+
+@app.route("/api/student/resume", methods=["GET"])
+@role_required("student")
+def get_student_resume():
+    connection = get_db_connection()
+
+    try:
+        resume = get_resume_metadata(
+            connection,
+            session["user_id"]
+        )
+
+        return jsonify({
+            "resume": resume
+        }), 200
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 29: UPLOAD OR REPLACE STUDENT RESUME
+# =====================================================
+
+@app.route("/api/student/resume", methods=["PUT"])
+@role_required("student")
+def upload_student_resume():
+    if request.mimetype != "multipart/form-data":
+        return jsonify({
+            "error": "Multipart form data is required"
+        }), 415
+
+    if len(request.files.getlist("resume")) != 1:
+        return jsonify({
+            "error": "Exactly one resume file is required"
+        }), 400
+
+    upload = request.files.get("resume")
+
+    values, error, status = validate_resume_upload(upload)
+
+    if error:
+        return jsonify({
+            "error": error
+        }), status
+
+    user_id = session["user_id"]
+    connection = get_db_connection()
+
+    try:
+        execute_query(connection, """
+            INSERT INTO student_resumes (
+                user_id,
+                file_name,
+                mime_type,
+                file_size,
+                file_data
+            )
+            VALUES (?, ?, ?, ?, ?)
+
+            ON CONFLICT (user_id) DO UPDATE SET
+                file_name = excluded.file_name,
+                mime_type = excluded.mime_type,
+                file_size = excluded.file_size,
+                file_data = excluded.file_data,
+                updated_at = CURRENT_TIMESTAMP
+        """, (
+            user_id,
+            values["file_name"],
+            values["mime_type"],
+            values["file_size"],
+            values["file_data"]
+        ))
+
+        resume = get_resume_metadata(
+            connection,
+            user_id
+        )
+
+        connection.commit()
+
+        return jsonify({
+            "message": "Resume saved successfully",
+            "resume": resume
+        }), 200
+
+    except DATABASE_ERRORS:
+        connection.rollback()
+
+        return jsonify({
+            "error": "Unable to save resume"
+        }), 500
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 30: DOWNLOAD STUDENT RESUME
+# =====================================================
+
+@app.route(
+    "/api/student/resume/download",
+    methods=["GET"]
+)
+@role_required("student")
+def download_student_resume():
+    connection = get_db_connection()
+
+    try:
+        resume = execute_query(connection, """
+            SELECT file_name, file_data
+            FROM student_resumes
+            WHERE user_id = ?
+        """, (session["user_id"],)).fetchone()
+
+        if resume is None:
+            return jsonify({
+                "error": "Resume not found"
+            }), 404
+
+        return create_resume_download(resume)
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 31: DELETE STUDENT RESUME
+# =====================================================
+
+@app.route("/api/student/resume", methods=["DELETE"])
+@role_required("student")
+def delete_student_resume():
+    connection = get_db_connection()
+
+    try:
+        cursor = execute_query(connection, """
+            DELETE FROM student_resumes
+            WHERE user_id = ?
+        """, (session["user_id"],))
+
+        if cursor.rowcount == 0:
+            connection.rollback()
+
+            return jsonify({
+                "error": "Resume not found"
+            }), 404
+
+        connection.commit()
+
+        return jsonify({
+            "message": "Resume deleted successfully"
+        }), 200
+
+    except DATABASE_ERRORS:
+        connection.rollback()
+
+        return jsonify({
+            "error": "Unable to delete resume"
+        }), 500
+
+    finally:
+        connection.close()
+
+
+
+# =====================================================
+# COMPANY APPLICANT RESUME AUTHORIZATION
+# =====================================================
+
+def get_authorized_resume_applicant(connection, application_id):
+    company = get_company(connection)
+
+    if company is None:
+        return None, "Company profile not found", 404
+
+    if not company["is_approved"]:
+        return None, "Company approval is required", 403
+
+    applicant = execute_query(connection, """
+        SELECT
+            a.student_id
+        FROM applications a
+        JOIN opportunities o
+            ON a.opportunity_id = o.id
+        JOIN users u
+            ON a.student_id = u.id
+        WHERE a.id = ?
+          AND o.company_id = ?
+          AND u.role = 'student'
+    """, (
+        application_id,
+        company["id"]
+    )).fetchone()
+
+    if applicant is None:
+        return None, "Application not found", 404
+
+    return applicant["student_id"], None, None
+
+
+# =====================================================
+# API 32: GET APPLICANT RESUME METADATA
+# =====================================================
+
+@app.route(
+    "/api/company/applications/<int:application_id>/resume",
+    methods=["GET"]
+)
+@role_required("company")
+def get_applicant_resume(application_id):
+    connection = get_db_connection()
+
+    try:
+        student_id, error, status = (
+            get_authorized_resume_applicant(
+                connection,
+                application_id
+            )
+        )
+
+        if error:
+            return jsonify({
+                "error": error
+            }), status
+
+        resume = get_resume_metadata(
+            connection,
+            student_id
+        )
+
+        return jsonify({
+            "resume": resume
+        }), 200
+
+    except DATABASE_ERRORS:
+        return jsonify({
+            "error": "Unable to retrieve applicant resume"
+        }), 500
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 33: DOWNLOAD APPLICANT RESUME
+# =====================================================
+
+@app.route(
+    "/api/company/applications/<int:application_id>/resume/download",
+    methods=["GET"]
+)
+@role_required("company")
+def download_applicant_resume(application_id):
+    connection = get_db_connection()
+
+    try:
+        student_id, error, status = (
+            get_authorized_resume_applicant(
+                connection,
+                application_id
+            )
+        )
+
+        if error:
+            return jsonify({
+                "error": error
+            }), status
+
+        resume = execute_query(connection, """
+            SELECT file_name, file_data
+            FROM student_resumes
+            WHERE user_id = ?
+        """, (student_id,)).fetchone()
+
+        if resume is None:
+            return jsonify({
+                "error": "Applicant resume not found"
+            }), 404
+
+        return create_resume_download(resume)
+
+    except DATABASE_ERRORS:
+        return jsonify({
+            "error": "Unable to download applicant resume"
+        }), 500
 
     finally:
         connection.close()

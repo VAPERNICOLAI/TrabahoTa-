@@ -390,7 +390,258 @@ document.addEventListener("DOMContentLoaded", async () => {
     let applicantProfileRequest = 0;
     let previousApplicantFocus = null;
 
+
+    // =====================================================
+    // APPLICANT RESUME MANAGEMENT
+    // =====================================================
+
+    let currentApplicantResume = null;
+    let currentResumeApplicationId = null;
+    let resumeDownloadBusy = false;
+
+    function showApplicantResumeMessage(text = "", type = "") {
+        const message = $("applicant-resume-message");
+
+        message.textContent = text;
+        message.className = "applicant-resume-message";
+
+        if (type) {
+            message.classList.add(type);
+        }
+    }
+
+    function formatApplicantResumeSize(bytes) {
+
+        if (bytes < 1024) {
+            return `${bytes} bytes`;
+        }
+
+        if (bytes < 1024 * 1024) {
+            return `${(bytes / 1024).toFixed(1)} KB`;
+        }
+
+        return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    }
+
+    function resetApplicantResume() {
+
+        currentApplicantResume = null;
+        currentResumeApplicationId = null;
+        resumeDownloadBusy = false;
+
+        $("applicant-resume-card").hidden = true;
+        $("applicant-resume-empty").hidden = true;
+
+        $("applicant-resume-name").textContent = "";
+        $("applicant-resume-size").textContent = "";
+        $("applicant-resume-updated").textContent = "";
+
+        $("applicant-resume-download").disabled = true;
+
+        showApplicantResumeMessage();
+    }
+
+    function isCurrentApplicantRequest(requestId) {
+
+        return (
+            requestId === applicantProfileRequest &&
+            $("applicant-modal").classList.contains("active")
+        );
+    }
+
+    async function loadApplicantResume(applicationId, requestId) {
+
+        resetApplicantResume();
+
+        showApplicantResumeMessage(
+            "Loading applicant résumé...",
+            "info"
+        );
+
+        try {
+
+            const result = await api(
+                "/company/applications/" +
+                applicationId +
+                "/resume"
+            );
+
+            if (!isCurrentApplicantRequest(requestId)) {
+                return;
+            }
+
+            if (!result || !("resume" in result)) {
+                throw new Error("Invalid résumé response.");
+            }
+
+            currentApplicantResume = result.resume;
+            currentResumeApplicationId = applicationId;
+
+            if (!currentApplicantResume) {
+
+                $("applicant-resume-card").hidden = true;
+                $("applicant-resume-empty").hidden = false;
+
+                showApplicantResumeMessage();
+
+                return;
+            }
+
+            $("applicant-resume-name").textContent =
+                currentApplicantResume.file_name;
+
+            $("applicant-resume-size").textContent =
+                formatApplicantResumeSize(
+                    currentApplicantResume.file_size
+                ) + " · PDF document";
+
+            $("applicant-resume-updated").textContent =
+                "Updated: " +
+                formatDate(currentApplicantResume.updated_at);
+
+            $("applicant-resume-card").hidden = false;
+            $("applicant-resume-empty").hidden = true;
+
+            $("applicant-resume-download").disabled = false;
+
+            showApplicantResumeMessage();
+
+        } catch (error) {
+
+            if (!isCurrentApplicantRequest(requestId)) {
+                return;
+            }
+
+            resetApplicantResume();
+
+            showApplicantResumeMessage(
+                error.message || "Unable to load applicant résumé.",
+                "error"
+            );
+        }
+    }
+
+    async function downloadApplicantResume() {
+
+        if (
+            resumeDownloadBusy ||
+            !currentApplicantResume ||
+            currentResumeApplicationId === null
+        ) {
+            return;
+        }
+
+        const requestId = applicantProfileRequest;
+        const applicationId = currentResumeApplicationId;
+        const filename = currentApplicantResume.file_name;
+
+        const button = $("applicant-resume-download");
+
+        resumeDownloadBusy = true;
+        button.disabled = true;
+
+        showApplicantResumeMessage(
+            "Preparing résumé download...",
+            "info"
+        );
+
+        try {
+
+            const response = await fetch(
+                COMPANY_API +
+                "/company/applications/" +
+                applicationId +
+                "/resume/download",
+                {
+                    credentials: "include",
+                    cache: "no-store"
+                }
+            );
+
+            if (!isCurrentApplicantRequest(requestId)) {
+                return;
+            }
+
+            if (response.status === 401) {
+
+                window.location.replace("login.html");
+
+                throw new Error(
+                    "Session expired. Please log in again."
+                );
+            }
+
+            if (!response.ok) {
+
+                const result = await response.json()
+                    .catch(() => null);
+
+                throw new Error(
+                    result?.error || "Unable to download résumé."
+                );
+            }
+
+            const blob = await response.blob();
+
+            if (!isCurrentApplicantRequest(requestId)) {
+                return;
+            }
+
+            if (blob.type !== "application/pdf") {
+                throw new Error("Invalid PDF download response.");
+            }
+
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement("a");
+
+            anchor.href = url;
+            anchor.download = filename;
+
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+
+            setTimeout(
+                () => URL.revokeObjectURL(url),
+                10000
+            );
+
+            showApplicantResumeMessage(
+                "Résumé download started.",
+                "success"
+            );
+
+        } catch (error) {
+
+            if (!isCurrentApplicantRequest(requestId)) {
+                return;
+            }
+
+            showApplicantResumeMessage(
+                error.message || "Unable to download résumé.",
+                "error"
+            );
+
+        } finally {
+
+            if (isCurrentApplicantRequest(requestId)) {
+
+                resumeDownloadBusy = false;
+
+                button.disabled = !currentApplicantResume;
+            }
+        }
+    }
+
+    $("applicant-resume-download").addEventListener(
+        "click",
+        downloadApplicantResume
+    );
+
+
     function resetApplicantProfile() {
+        resetApplicantResume();
+
         $("applicant-profile-content").hidden = true;
 
         const fields = [
@@ -524,6 +775,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             $("applicant-profile-content").hidden = false;
 
             profileMessage.textContent = "";
+
+            await loadApplicantResume(
+                application.id,
+                requestId
+            );
 
         } catch (error) {
             if (

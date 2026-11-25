@@ -332,6 +332,7 @@
         }
     </style>
     <link rel="stylesheet" href="css/applicant-profile.css">
+    <link rel="stylesheet" href="css/applicant-resume.css">
 </head>
 
 <body>
@@ -616,6 +617,76 @@
                 <div class="applicant-profile-field">
                     <label>Qualifications</label>
                     <p id="detail-qualifications"></p>
+                </div>
+
+                <!-- APPLICANT RESUME -->
+                <div class="applicant-resume-section"
+                     id="applicant-resume-section">
+
+                    <h4>Applicant Résumé</h4>
+
+                    <p id="applicant-resume-message"
+                       class="applicant-resume-message"
+                       role="status"
+                       aria-live="polite">
+                    </p>
+
+                    <div id="applicant-resume-card"
+                         class="applicant-resume-card"
+                         hidden>
+
+                        <div class="applicant-resume-details">
+
+                            <span class="applicant-pdf-icon">
+                                PDF
+                            </span>
+
+                            <div class="applicant-resume-info">
+
+                                <strong id="applicant-resume-name">
+                                </strong>
+
+                                <p id="applicant-resume-size"></p>
+
+                                <p id="applicant-resume-updated"></p>
+
+                            </div>
+
+                        </div>
+
+                        <button type="button"
+                                id="applicant-resume-download"
+                                class="applicant-resume-download"
+                                disabled>
+
+                            <svg width="18" height="18"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 aria-hidden="true">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5
+                                         a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+
+                            Download Résumé
+
+                        </button>
+
+                    </div>
+
+                    <div id="applicant-resume-empty"
+                         class="applicant-resume-empty"
+                         hidden>
+                        This applicant has not uploaded a résumé.
+                    </div>
+
+                    <p class="applicant-resume-privacy">
+                        Confidential document. For recruitment purposes only.
+                    </p>
+
                 </div>
 
                 <p class="applicant-privacy-note">

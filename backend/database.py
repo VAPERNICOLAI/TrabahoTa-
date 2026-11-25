@@ -121,6 +121,29 @@ def init_db():
             )
         """)
 
+        # TABLE 6: STUDENT RESUMES
+        binary_type = "BYTEA" if USE_POSTGRES else "BLOB"
+
+        connection.execute(f"""
+            CREATE TABLE IF NOT EXISTS student_resumes (
+                user_id INTEGER PRIMARY KEY,
+                file_name TEXT NOT NULL,
+                mime_type TEXT NOT NULL CHECK (
+                    mime_type = 'application/pdf'
+                ),
+                file_size INTEGER NOT NULL CHECK (
+                    file_size BETWEEN 1 AND 2097152
+                ),
+                file_data {binary_type} NOT NULL CHECK (
+                    length(file_data) = file_size
+                ),
+                uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+                    ON DELETE CASCADE
+            )
+        """)
+
         connection.commit()
 
     except Exception:
