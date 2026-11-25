@@ -18,6 +18,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     let opportunities = [];
     let applications = [];
+
+    const applicationTransitions = {
+        submitted: ["under_review"],
+        pending: ["under_review"],
+        under_review: ["accepted", "rejected"],
+        accepted: [],
+        rejected: [],
+        withdrawn: []
+    };
+
+    const updatingApplications = new Set();
     let editingId = null;
     let authenticated = false;
 
@@ -126,7 +137,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             pending: "Pending",
             under_review: "Under Review",
             accepted: "Accepted",
-            rejected: "Rejected"
+            rejected: "Rejected",
+            withdrawn: "Withdrawn"
         };
 
         return labels[status] || status;
@@ -667,6 +679,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     async function showApplicantDetails(application) {
+        if (application.status === "withdrawn") {
+            notifyApplications(
+                "Applicant profile access is restricted after withdrawal.",
+                true
+            );
+            return;
+        }
+
         const requestId = ++applicantProfileRequest;
 
         previousApplicantFocus = document.activeElement;
@@ -880,7 +900,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             const email = addText(
                 applicantCell,
                 "span",
-                application.student_email || "No email"
+                application.status === "withdrawn"
+                    ? "Contact information restricted"
+                    : application.student_email || "No email"
             );
 
             email.className = "applicant-email";
@@ -919,98 +941,176 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             actionContainer.className = "actions";
 
-            const viewButton = makeButton(
-                "View Profile",
-                "view-btn",
-                () => showApplicantDetails(application)
-            );
+            const applicationId = Number(application.id);
 
-            const statusControl = document.createElement("div");
+            const allowedTransitions =
+                applicationTransitions[application.status] || [];
 
-            statusControl.className = "status-control";
+            if (application.status !== "withdrawn") {
+                const viewButton = makeButton(
+                    "View Profile",
+                    "view-btn",
+                    () => showApplicantDetails(application)
+                );
 
-            const statusSelect = document.createElement("select");
+                actionContainer.appendChild(viewButton);
+            }
 
-            const statusOptions = [
-                ["submitted", "Submitted"],
-                ["under_review", "Under Review"],
-                ["accepted", "Accepted"],
-                ["rejected", "Rejected"]
-            ];
+            if (!allowedTransitions.length) {
+                const locked = addText(
+                    actionContainer,
+                    "span",
+                    application.status === "withdrawn"
+                        ? "Withdrawn - Access Restricted"
+                        : "Final Status - Locked"
+                );
 
-            statusOptions.forEach(([value, label]) => {
+                locked.style.color = "#64748b";
+                locked.style.fontSize = "13px";
+                locked.style.fontWeight = "600";
 
-                const option = document.createElement("option");
+            } else {
+                const statusControl =
+                    document.createElement("div");
 
-                option.value = value;
-                option.textContent = label;
+                statusControl.className = "status-control";
 
-                statusSelect.appendChild(option);
-            });
+                const statusSelect =
+                    document.createElement("select");
 
-            statusSelect.value = application.status;
+                statusSelect.setAttribute(
+                    "aria-label",
+                    "Update application status"
+                );
 
-            const saveStatusButton = makeButton(
-                "Save",
-                "primary",
-                async () => {
+                const placeholder =
+                    document.createElement("option");
 
-                    const newStatus = statusSelect.value;
+                placeholder.value = "";
+                placeholder.textContent = "Select next status";
+                placeholder.disabled = true;
+                placeholder.selected = true;
 
-                    if (newStatus === application.status) {
+                statusSelect.appendChild(placeholder);
 
-                        notifyApplications(
-                            "No status changes were made."
-                        );
+                allowedTransitions.forEach(value => {
+                    const option =
+                        document.createElement("option");
 
-                        return;
-                    }
+                    option.value = value;
+                    option.textContent = formatStatus(value);
 
-                    saveStatusButton.disabled = true;
-                    saveStatusButton.textContent = "Saving...";
+                    statusSelect.appendChild(option);
+                });
 
-                    try {
+                const saveStatusButton = makeButton(
+                    "Save",
+                    "primary",
+                    async () => {
+                        const newStatus = statusSelect.value;
 
-                        const result = await api(
-                            `/applications/${application.id}`,
-                            {
-                                method: "PATCH",
-                                body: JSON.stringify({
-                                    status: newStatus
-                                })
+                        if (
+                            !allowedTransitions.includes(newStatus) ||
+                            updatingApplications.has(applicationId)
+                        ) {
+                            return;
+                        }
+
+                        if (
+                            ["accepted", "rejected"].includes(newStatus)
+                        ) {
+                            const confirmed = window.confirm(
+                                "Change this application status to " +
+                                formatStatus(newStatus) +
+                                "?\\n\\nThis decision is final and cannot be reversed."
+                            );
+
+                            if (!confirmed) return;
+                        }
+
+                        updatingApplications.add(applicationId);
+
+                        statusSelect.disabled = true;
+                        saveStatusButton.disabled = true;
+                        saveStatusButton.textContent = "Saving...";
+
+                        try {
+                            const result = await api(
+                                `/applications/${applicationId}`,
+                                {
+                                    method: "PATCH",
+                                    body: JSON.stringify({
+                                        status: newStatus
+                                    })
+                                }
+                            );
+
+                            application.status =
+                                result.application.status;
+
+                            try {
+                                await loadApplications();
+
+                                notifyApplications(
+                                    "Application status updated successfully."
+                                );
+                            } catch (refreshError) {
+                                renderApplications();
+
+                                notifyApplications(
+                                    "Status saved. Refresh to retrieve the latest records.",
+                                    true
+                                );
                             }
-                        );
 
-                        application.status =
-                            result.application.status;
+                        } catch (error) {
+                            try {
+                                await loadApplications();
+                            } catch (refreshError) {
+                                console.error(
+                                    "Application refresh error:",
+                                    refreshError
+                                );
+                            }
 
-                        await loadApplications();
+                            notifyApplications(
+                                error.message ||
+                                "Unable to update application status.",
+                                true
+                            );
 
-                        notifyApplications(
-                            "Application status updated successfully."
-                        );
+                        } finally {
+                            updatingApplications.delete(applicationId);
 
-                    } catch (error) {
-
-                        notifyApplications(error.message, true);
-
-                    } finally {
-
-                        saveStatusButton.disabled = false;
-                        saveStatusButton.textContent = "Save";
+                            renderApplications();
+                        }
                     }
+                );
+
+                statusSelect.disabled =
+                    updatingApplications.has(applicationId);
+
+                saveStatusButton.disabled = true;
+
+                if (updatingApplications.has(applicationId)) {
+                    saveStatusButton.textContent = "Saving...";
                 }
-            );
 
-            statusControl.append(
-                statusSelect,
-                saveStatusButton
-            );
+                statusSelect.addEventListener("change", () => {
+                    saveStatusButton.disabled =
+                        !allowedTransitions.includes(
+                            statusSelect.value
+                        ) ||
+                        updatingApplications.has(applicationId);
+                });
 
-            actionContainer.append(
-                viewButton,
-                statusControl
-            );
+                statusControl.append(
+                    statusSelect,
+                    saveStatusButton
+                );
+
+                actionContainer.appendChild(statusControl);
+            }
 
             actionsCell.appendChild(actionContainer);
 

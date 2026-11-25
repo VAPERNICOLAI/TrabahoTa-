@@ -973,25 +973,45 @@ def apply_for_opportunity(opportunity_id):
             }), 403
 
         opportunity = execute_query(connection, """
-            SELECT o.id
+            SELECT
+                o.id,
+                o.status,
+                c.is_approved,
+                CASE
+                    WHEN o.deadline IS NOT NULL
+                     AND o.deadline < DATE('now')
+                    THEN 1
+                    ELSE 0
+                END AS is_expired
             FROM opportunities o
             JOIN companies c ON o.company_id = c.id
             WHERE o.id = ?
-              AND o.status = 'open'
-              AND c.is_approved = 1
-              AND (
-                  o.deadline IS NULL
-                  OR o.deadline >= DATE('now')
-              )
         """, (opportunity_id,)).fetchone()
 
         if opportunity is None:
             return jsonify({
-                "error": "Opportunity is unavailable or closed"
+                "error": "Opportunity not found"
             }), 404
 
+        if not opportunity["is_approved"]:
+            return jsonify({
+                "error": "This opportunity is unavailable"
+            }), 403
+
+        if opportunity["status"] != "open":
+            return jsonify({
+                "error": "This opportunity is closed",
+                "code": "OPPORTUNITY_CLOSED"
+            }), 409
+
+        if opportunity["is_expired"]:
+            return jsonify({
+                "error": "The application deadline has passed",
+                "code": "DEADLINE_EXPIRED"
+            }), 409
+
         existing_application = execute_query(connection, """
-            SELECT id
+            SELECT id, status
             FROM applications
             WHERE student_id = ?
               AND opportunity_id = ?
@@ -1001,8 +1021,15 @@ def apply_for_opportunity(opportunity_id):
         )).fetchone()
 
         if existing_application:
+            if existing_application["status"] == "withdrawn":
+                return jsonify({
+                    "error": "You cannot reapply after withdrawing this application",
+                    "code": "REAPPLICATION_NOT_ALLOWED"
+                }), 409
+
             return jsonify({
-                "error": "You have already applied for this opportunity"
+                "error": "You have already applied for this opportunity",
+                "code": "DUPLICATE_APPLICATION"
             }), 409
 
         inserted_id = insert_and_get_id(connection, """
@@ -1120,7 +1147,10 @@ def get_company_applications():
                 a.status,
                 a.applied_at,
                 u.full_name AS student_name,
-                u.email AS student_email,
+                CASE
+                    WHEN a.status = 'withdrawn' THEN NULL
+                    ELSE u.email
+                END AS student_email,
                 o.title AS opportunity_title
             FROM applications a
             JOIN users u ON a.student_id = u.id
@@ -1152,6 +1182,53 @@ def get_company_applications():
 # API 17: COMPANY UPDATE APPLICATION STATUS
 # =====================================================
 
+
+# =====================================================
+# APPLICATION LIFECYCLE RULES
+# =====================================================
+
+APPLICATION_STATUSES = {
+    "submitted",
+    "under_review",
+    "accepted",
+    "rejected",
+    "withdrawn"
+}
+
+APPLICATION_STATUS_TRANSITIONS = {
+    "submitted": {"under_review"},
+    "under_review": {"accepted", "rejected"},
+    "accepted": set(),
+    "rejected": set(),
+    "withdrawn": set(),
+
+    # Compatibility with legacy pending applications.
+    "pending": {"under_review"}
+}
+
+WITHDRAWABLE_APPLICATION_STATUSES = {
+    "submitted",
+    "pending",
+    "under_review"
+}
+
+FINAL_APPLICATION_STATUSES = {
+    "accepted",
+    "rejected",
+    "withdrawn"
+}
+
+
+def can_update_application_status(current_status, new_status):
+    return new_status in APPLICATION_STATUS_TRANSITIONS.get(
+        current_status, set()
+    )
+
+
+def can_withdraw_application(current_status):
+    return current_status in WITHDRAWABLE_APPLICATION_STATUSES
+
+
 @app.route("/api/applications/<int:application_id>", methods=["PATCH"])
 @role_required("company")
 def update_application_status(application_id):
@@ -1164,14 +1241,11 @@ def update_application_status(application_id):
 
     status = data.get("status")
 
-    allowed_statuses = {
-        "submitted",
-        "under_review",
-        "accepted",
-        "rejected"
-    }
-
-    if status not in allowed_statuses:
+    if (
+        not isinstance(status, str)
+        or status not in APPLICATION_STATUSES
+        or status == "withdrawn"
+    ):
         return jsonify({
             "error": "Invalid application status"
         }), 400
@@ -1207,11 +1281,45 @@ def update_application_status(application_id):
                 "error": "Company approval is required"
             }), 403
 
-        execute_query(connection, """
+        current_status = application["status"]
+
+        if not can_update_application_status(
+            current_status, status
+        ):
+            return jsonify({
+                "error": "Invalid application status transition",
+                "current_status": current_status,
+                "requested_status": status,
+                "allowed_transitions": sorted(
+                    APPLICATION_STATUS_TRANSITIONS.get(
+                        current_status, set()
+                    )
+                )
+            }), 409
+
+        cursor = execute_query(connection, """
             UPDATE applications
             SET status = ?
             WHERE id = ?
-        """, (status, application_id))
+              AND status = ?
+              AND opportunity_id IN (
+                  SELECT id
+                  FROM opportunities
+                  WHERE company_id = ?
+              )
+        """, (
+            status,
+            application_id,
+            current_status,
+            company["id"]
+        ))
+
+        if cursor.rowcount != 1:
+            connection.rollback()
+
+            return jsonify({
+                "error": "Application status changed. Refresh and try again."
+            }), 409
 
         connection.commit()
 
@@ -1822,6 +1930,12 @@ def get_applicant_student_profile(application_id):
                 "error": "Application not found"
             }), 404
 
+        if profile["application_status"] == "withdrawn":
+            return jsonify({
+                "error": "Applicant profile access is unavailable after withdrawal",
+                "code": "APPLICATION_WITHDRAWN"
+            }), 403
+
         result = serialize_row(profile)
         result["is_verified"] = bool(result["is_verified"])
 
@@ -2150,7 +2264,8 @@ def get_authorized_resume_applicant(connection, application_id):
 
     applicant = execute_query(connection, """
         SELECT
-            a.student_id
+            a.student_id,
+            a.status AS application_status
         FROM applications a
         JOIN opportunities o
             ON a.opportunity_id = o.id
@@ -2166,6 +2281,13 @@ def get_authorized_resume_applicant(connection, application_id):
 
     if applicant is None:
         return None, "Application not found", 404
+
+    if applicant["application_status"] == "withdrawn":
+        return (
+            None,
+            "Applicant resume access is unavailable after withdrawal",
+            403
+        )
 
     return applicant["student_id"], None, None
 
@@ -2254,6 +2376,86 @@ def download_applicant_resume(application_id):
     except DATABASE_ERRORS:
         return jsonify({
             "error": "Unable to download applicant resume"
+        }), 500
+
+    finally:
+        connection.close()
+
+
+
+# =====================================================
+# API 34: STUDENT WITHDRAW APPLICATION
+# =====================================================
+
+@app.route(
+    "/api/student/applications/<int:application_id>/withdraw",
+    methods=["PATCH"]
+)
+@role_required("student")
+def withdraw_application(application_id):
+    connection = get_db_connection()
+
+    try:
+        application = execute_query(connection, """
+            SELECT id, status
+            FROM applications
+            WHERE id = ?
+              AND student_id = ?
+        """, (
+            application_id,
+            session["user_id"]
+        )).fetchone()
+
+        if application is None:
+            return jsonify({
+                "error": "Application not found"
+            }), 404
+
+        current_status = application["status"]
+
+        if not can_withdraw_application(current_status):
+            return jsonify({
+                "error": "This application can no longer be withdrawn",
+                "current_status": current_status
+            }), 409
+
+        cursor = execute_query(connection, """
+            UPDATE applications
+            SET status = 'withdrawn'
+            WHERE id = ?
+              AND student_id = ?
+              AND status = ?
+        """, (
+            application_id,
+            session["user_id"],
+            current_status
+        ))
+
+        if cursor.rowcount != 1:
+            connection.rollback()
+
+            return jsonify({
+                "error": "Application status changed. Refresh and try again."
+            }), 409
+
+        connection.commit()
+
+        return jsonify({
+            "message": "Application withdrawn successfully",
+            "application": {
+                "id": application_id,
+                "status": "withdrawn"
+            }
+        }), 200
+
+    except Exception:
+        connection.rollback()
+        app.logger.exception(
+            "Application withdrawal failed"
+        )
+
+        return jsonify({
+            "error": "Unable to withdraw application"
         }), 500
 
     finally:

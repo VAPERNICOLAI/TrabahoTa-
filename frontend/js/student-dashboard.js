@@ -15,6 +15,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     let availableOpportunities = [];
     let applicationsLoaded = false;
 
+    const withdrawableStatuses = new Set([
+        "submitted",
+        "pending",
+        "under_review"
+    ]);
+
+    const withdrawingApplications = new Set();
+
     // =====================================================
     // 1. API REQUESTS
     // =====================================================
@@ -81,7 +89,8 @@ document.addEventListener("DOMContentLoaded", async function () {
             accepted: "Accepted",
             approved: "Approved",
             rejected: "Rejected",
-            declined: "Declined"
+            declined: "Declined",
+            withdrawn: "Withdrawn"
         };
 
         return labels[status] || String(status || "Unknown");
@@ -95,7 +104,8 @@ document.addEventListener("DOMContentLoaded", async function () {
             accepted: "Congratulations! The company has accepted your application.",
             approved: "Your application has been approved.",
             rejected: "The company has not selected your application.",
-            declined: "The company has declined your application."
+            declined: "The company has declined your application.",
+            withdrawn: "You have withdrawn this application. Reapplication is not allowed."
         };
 
         return descriptions[status] || "Application status updated.";
@@ -118,7 +128,8 @@ document.addEventListener("DOMContentLoaded", async function () {
             accepted: ["#d4edda", "#155724"],
             approved: ["#d4edda", "#155724"],
             rejected: ["#f8d7da", "#721c24"],
-            declined: ["#f8d7da", "#721c24"]
+            declined: ["#f8d7da", "#721c24"],
+            withdrawn: ["#e9ecef", "#495057"]
         };
 
         const [background, color] =
@@ -156,6 +167,107 @@ document.addEventListener("DOMContentLoaded", async function () {
     // =====================================================
     // 4. APPLICATION HISTORY
     // =====================================================
+
+    async function withdrawApplication(application, button) {
+        const applicationId = Number(application.id);
+
+        if (
+            !Number.isInteger(applicationId) ||
+            applicationId <= 0 ||
+            !withdrawableStatuses.has(application.status) ||
+            withdrawingApplications.has(applicationId)
+        ) {
+            return;
+        }
+
+        const confirmed = window.confirm(
+            "Withdraw your application for " +
+            application.title +
+            "?\\n\\nThis action is permanent. " +
+            "You cannot reapply for this opportunity. " +
+            "The company will lose access to your profile " +
+            "and resume through this application."
+        );
+
+        if (!confirmed) return;
+
+        withdrawingApplications.add(applicationId);
+
+        button.disabled = true;
+        button.textContent = "Withdrawing...";
+        button.style.opacity = "0.6";
+
+        try {
+            await api(
+                `/student/applications/${applicationId}/withdraw`,
+                {
+                    method: "PATCH"
+                }
+            );
+
+            const refreshed = await loadApplications();
+            renderOpportunities();
+
+            if (refreshed) {
+                alert("Application withdrawn successfully.");
+            } else {
+                alert(
+                    "Application withdrawn successfully. " +
+                    "Please refresh to update your dashboard."
+                );
+            }
+
+        } catch (error) {
+            console.error("Withdrawal error:", error);
+
+            alert(error.message || "Unable to withdraw application.");
+
+            await loadApplications();
+            renderOpportunities();
+
+        } finally {
+            withdrawingApplications.delete(applicationId);
+
+            if (applicationsLoaded) {
+                renderApplications();
+            }
+        }
+    }
+
+
+    function createWithdrawButton(application) {
+        const button = document.createElement("button");
+
+        button.type = "button";
+        button.className = "withdraw-application-btn";
+        button.textContent = "Withdraw Application";
+
+        button.style.padding = "10px 16px";
+        button.style.marginTop = "14px";
+        button.style.border = "1px solid #dc2626";
+        button.style.borderRadius = "8px";
+        button.style.backgroundColor = "#ffffff";
+        button.style.color = "#b91c1c";
+        button.style.fontWeight = "600";
+        button.style.cursor = "pointer";
+
+        if (
+            withdrawingApplications.has(
+                Number(application.id)
+            )
+        ) {
+            button.disabled = true;
+            button.textContent = "Withdrawing...";
+            button.style.opacity = "0.6";
+        }
+
+        button.addEventListener("click", () => {
+            withdrawApplication(application, button);
+        });
+
+        return button;
+    }
+
 
     function renderApplications() {
         if (!applicationsList) return;
@@ -229,6 +341,14 @@ document.addEventListener("DOMContentLoaded", async function () {
 
             description.style.marginTop = "12px";
             description.style.color = "#667085";
+
+            if (
+                withdrawableStatuses.has(application.status)
+            ) {
+                card.appendChild(
+                    createWithdrawButton(application)
+                );
+            }
 
             applicationsList.appendChild(card);
         });
@@ -346,7 +466,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         button.style.fontWeight = "600";
         button.style.cursor = "pointer";
 
-        const alreadyApplied = studentApplications.some(
+        const existingApplication = studentApplications.find(
             application =>
                 Number(application.opportunity_id) ===
                 Number(opportunity.id)
@@ -360,12 +480,28 @@ document.addEventListener("DOMContentLoaded", async function () {
             return button;
         }
 
-        if (alreadyApplied) {
-            button.textContent = "Already Applied";
+        if (existingApplication) {
+            const withdrawn =
+                existingApplication.status === "withdrawn";
+
+            button.textContent = withdrawn
+                ? "Application Withdrawn"
+                : "Already Applied";
+
             button.disabled = true;
             button.classList.add("applied");
-            button.style.backgroundColor = "#198754";
+
+            button.style.backgroundColor = withdrawn
+                ? "#6c757d"
+                : "#198754";
+
             button.style.color = "#ffffff";
+
+            if (withdrawn) {
+                button.title =
+                    "Reapplication is not allowed after withdrawal.";
+            }
+
             return button;
         }
 
@@ -400,7 +536,11 @@ document.addEventListener("DOMContentLoaded", async function () {
             } catch (error) {
                 console.error("Application error:", error);
 
-                if (error.message.toLowerCase().includes("already")) {
+                if (
+                    error.message.toLowerCase().includes("already") ||
+                    error.message.toLowerCase().includes("reapply")
+                ) {
+                    alert(error.message);
                     await loadApplications();
                     renderOpportunities();
                     return;
