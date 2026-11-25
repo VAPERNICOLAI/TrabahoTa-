@@ -101,6 +101,26 @@ def init_db():
             )
         """)
 
+        # TABLE 5: STUDENT PROFILES
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS student_profiles (
+                user_id INTEGER PRIMARY KEY,
+                student_number TEXT UNIQUE,
+                college TEXT,
+                degree_program TEXT,
+                year_level INTEGER CHECK (
+                    year_level BETWEEN 1 AND 6
+                ),
+                contact_number TEXT,
+                bio TEXT,
+                skills TEXT,
+                qualifications TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+                    ON DELETE CASCADE
+            )
+        """)
+
         connection.commit()
 
     except Exception:

@@ -386,7 +386,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     // APPLICANT DETAILS POPUP
     // =====================================================
 
-    function showApplicantDetails(application) {
+
+    let applicantProfileRequest = 0;
+    let previousApplicantFocus = null;
+
+    function resetApplicantProfile() {
+        $("applicant-profile-content").hidden = true;
+
+        const fields = [
+            "detail-college",
+            "detail-degree",
+            "detail-year-level",
+            "detail-bio",
+            "detail-skills",
+            "detail-qualifications"
+        ];
+
+        fields.forEach(id => {
+            $(id).textContent = "";
+        });
+
+        $("applicant-verification").textContent = "";
+        $("applicant-verification").className =
+            "applicant-verification";
+
+        $("applicant-profile-message").textContent = "";
+        $("applicant-profile-message").className =
+            "applicant-profile-message";
+    }
+
+    async function showApplicantDetails(application) {
+        const requestId = ++applicantProfileRequest;
+
+        previousApplicantFocus = document.activeElement;
+
+        resetApplicantProfile();
 
         $("detail-name").textContent =
             application.student_name || "Not available";
@@ -403,14 +437,125 @@ document.addEventListener("DOMContentLoaded", async () => {
         $("detail-status").textContent =
             formatStatus(application.status);
 
-        $("applicant-modal").classList.add("active");
+        const modal = $("applicant-modal");
 
-        $("close-applicant-modal").focus();
+        modal.classList.add("active");
+
+        $("close-applicant-modal").focus({
+            preventScroll: true
+        });
+
+        modal.querySelector(".modal").scrollTop = 0;
+
+        const profileMessage = $("applicant-profile-message");
+
+        profileMessage.textContent =
+            "Loading student profile...";
+
+        try {
+            const result = await api(
+                "/company/applications/"
+                + application.id
+                + "/student-profile"
+            );
+
+            if (
+                requestId !== applicantProfileRequest ||
+                !modal.classList.contains("active")
+            ) {
+                return;
+            }
+
+            if (!result || !result.profile) {
+                throw new Error("Invalid applicant profile response.");
+            }
+
+            const profile = result.profile;
+
+            $("detail-name").textContent =
+                profile.full_name || "Not available";
+
+            $("detail-email").textContent =
+                profile.email || "Not available";
+
+            $("detail-position").textContent =
+                profile.opportunity_title || "Not available";
+
+            $("detail-status").textContent =
+                formatStatus(profile.application_status);
+
+            $("detail-college").textContent =
+                profile.college || "Not provided";
+
+            $("detail-degree").textContent =
+                profile.degree_program || "Not provided";
+
+            const yearLabels = {
+                1: "1st Year",
+                2: "2nd Year",
+                3: "3rd Year",
+                4: "4th Year",
+                5: "5th Year",
+                6: "6th Year"
+            };
+
+            $("detail-year-level").textContent =
+                yearLabels[profile.year_level] || "Not provided";
+
+            $("detail-bio").textContent =
+                profile.bio || "No introduction provided.";
+
+            $("detail-skills").textContent =
+                profile.skills || "No skills provided.";
+
+            $("detail-qualifications").textContent =
+                profile.qualifications || "No qualifications provided.";
+
+            const verification = $("applicant-verification");
+
+            verification.textContent = profile.is_verified
+                ? "Verified Student"
+                : "Awaiting Verification";
+
+            verification.className = profile.is_verified
+                ? "applicant-verification verified"
+                : "applicant-verification unverified";
+
+            $("applicant-profile-content").hidden = false;
+
+            profileMessage.textContent = "";
+
+        } catch (error) {
+            if (
+                requestId !== applicantProfileRequest ||
+                !modal.classList.contains("active")
+            ) {
+                return;
+            }
+
+            $("applicant-profile-content").hidden = true;
+
+            profileMessage.textContent =
+                error.message || "Unable to load student profile.";
+
+            profileMessage.className =
+                "applicant-profile-message error";
+        }
     }
 
     function closeApplicantDetails() {
+        applicantProfileRequest++;
 
         $("applicant-modal").classList.remove("active");
+
+        resetApplicantProfile();
+
+        if (previousApplicantFocus &&
+            previousApplicantFocus.isConnected) {
+            previousApplicantFocus.focus();
+        }
+
+        previousApplicantFocus = null;
     }
 
     $("close-applicant-modal").addEventListener(
@@ -519,7 +664,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             actionContainer.className = "actions";
 
             const viewButton = makeButton(
-                "View",
+                "View Profile",
                 "view-btn",
                 () => showApplicantDetails(application)
             );

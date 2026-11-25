@@ -552,6 +552,156 @@ document.addEventListener("DOMContentLoaded", async function () {
     // 9. INITIALIZE STUDENT DASHBOARD
     // =====================================================
 
+
+    // =====================================================
+    // STUDENT PROFILE MANAGEMENT
+    // =====================================================
+
+    const profileForm = $("student-profile-form");
+    const profileSaveButton = $("profile-save-btn");
+    const profileMessage = $("profile-message");
+
+    const profileFields = {
+        student_number: "profile-student-number",
+        college: "profile-college",
+        degree_program: "profile-degree",
+        year_level: "profile-year-level",
+        contact_number: "profile-contact",
+        bio: "profile-bio",
+        skills: "profile-skills",
+        qualifications: "profile-qualifications"
+    };
+
+    let profileLoaded = false;
+
+    function showProfileMessage(message, type) {
+        profileMessage.textContent = message;
+        profileMessage.className = type;
+    }
+
+    function setProfileFormDisabled(disabled) {
+        Object.values(profileFields).forEach(id => {
+            $(id).disabled = disabled;
+        });
+
+        profileSaveButton.disabled = disabled;
+    }
+
+    function populateStudentProfile(profile) {
+        const fullName = profile.full_name || "Student";
+
+        $("profile-full-name").textContent = fullName;
+        $("profile-email").textContent = profile.email || "";
+
+        $("profile-initial").textContent =
+            fullName.trim().charAt(0).toUpperCase() || "S";
+
+        const verification = $("profile-verification");
+
+        verification.textContent = profile.is_verified
+            ? "Verified Student"
+            : "Awaiting Verification";
+
+        verification.className = profile.is_verified
+            ? "profile-verification verified"
+            : "profile-verification unverified";
+
+        Object.entries(profileFields).forEach(([field, id]) => {
+            $(id).value = profile[field] ?? "";
+        });
+    }
+
+    async function loadStudentProfile() {
+        profileLoaded = false;
+        setProfileFormDisabled(true);
+
+        showProfileMessage("Loading your profile...", "info");
+
+        try {
+            const result = await api("/student/profile");
+
+            if (!result || !result.profile) {
+                throw new Error("Invalid profile response.");
+            }
+
+            populateStudentProfile(result.profile);
+
+            profileLoaded = true;
+
+            showProfileMessage("", "");
+
+        } catch (error) {
+            console.error("Student profile error:", error);
+
+            showProfileMessage(
+                error.message || "Unable to load profile. Please refresh.",
+                "error"
+            );
+
+        } finally {
+            setProfileFormDisabled(!profileLoaded);
+        }
+    }
+
+    if (profileForm) {
+        profileForm.addEventListener("submit", async event => {
+            event.preventDefault();
+
+            if (!profileLoaded || profileSaveButton.disabled) {
+                return;
+            }
+
+            const payload = {};
+
+            Object.entries(profileFields).forEach(([field, id]) => {
+                const value = $(id).value.trim();
+
+                if (field === "year_level") {
+                    payload[field] = value ? Number(value) : null;
+                } else {
+                    payload[field] = value || null;
+                }
+            });
+
+            setProfileFormDisabled(true);
+            profileSaveButton.textContent = "Saving Profile...";
+
+            showProfileMessage("Saving your changes...", "info");
+
+            try {
+                const result = await api("/student/profile", {
+                    method: "PUT",
+                    body: JSON.stringify(payload)
+                });
+
+                if (!result || !result.profile) {
+                    throw new Error("Invalid profile response.");
+                }
+
+                populateStudentProfile(result.profile);
+
+                showProfileMessage(
+                    "Your profile has been saved successfully!",
+                    "success"
+                );
+
+            } catch (error) {
+                console.error("Profile save error:", error);
+
+                showProfileMessage(
+                    error.message || "Unable to save profile.",
+                    "error"
+                );
+
+            } finally {
+                setProfileFormDisabled(false);
+                profileSaveButton.textContent = "Save Profile";
+            }
+        });
+
+        await loadStudentProfile();
+    }
+
     await loadApplications();
     await loadOpportunities();
 });

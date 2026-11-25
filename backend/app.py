@@ -1561,5 +1561,272 @@ def admin_applications():
 
 
 
+
+# =====================================================
+# STUDENT PROFILE REST API
+# =====================================================
+
+STUDENT_PROFILE_FIELDS = {
+    "student_number": 30,
+    "college": 150,
+    "degree_program": 150,
+    "contact_number": 30,
+    "bio": 2000,
+    "skills": 2000,
+    "qualifications": 3000
+}
+
+
+def read_student_profile(connection, user_id):
+    return execute_query(connection, """
+        SELECT
+            u.id AS user_id,
+            u.full_name,
+            u.email,
+            u.is_verified,
+            p.student_number,
+            p.college,
+            p.degree_program,
+            p.year_level,
+            p.contact_number,
+            p.bio,
+            p.skills,
+            p.qualifications,
+            p.updated_at
+        FROM users u
+        LEFT JOIN student_profiles p
+            ON p.user_id = u.id
+        WHERE u.id = ?
+          AND u.role = 'student'
+    """, (user_id,)).fetchone()
+
+
+# API 25: GET STUDENT PROFILE
+
+@app.route("/api/student/profile", methods=["GET"])
+@role_required("student")
+def get_student_profile():
+    connection = get_db_connection()
+
+    try:
+        profile = read_student_profile(
+            connection,
+            session["user_id"]
+        )
+
+        if profile is None:
+            return jsonify({
+                "error": "Student account not found"
+            }), 404
+
+        result = serialize_row(profile)
+        result["is_verified"] = bool(result["is_verified"])
+
+        return jsonify({
+            "profile": result
+        }), 200
+
+    finally:
+        connection.close()
+
+
+# API 26: CREATE OR UPDATE STUDENT PROFILE
+
+@app.route("/api/student/profile", methods=["PUT"])
+@role_required("student")
+def update_student_profile():
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict):
+        return jsonify({
+            "error": "A JSON object is required"
+        }), 400
+
+    allowed_fields = set(STUDENT_PROFILE_FIELDS) | {"year_level"}
+
+    if set(data) - allowed_fields:
+        return jsonify({
+            "error": "Unsupported profile fields"
+        }), 400
+
+    if not data:
+        return jsonify({
+            "error": "Profile data is required"
+        }), 400
+
+    cleaned = {}
+
+    for field, max_length in STUDENT_PROFILE_FIELDS.items():
+        if field not in data:
+            continue
+
+        value = data[field]
+
+        if value is None:
+            cleaned[field] = None
+            continue
+
+        if not isinstance(value, str):
+            return jsonify({
+                "error": field + " must be text"
+            }), 400
+
+        value = value.strip()
+
+        if len(value) > max_length or "\x00" in value:
+            return jsonify({
+                "error": "Invalid value for " + field
+            }), 400
+
+        cleaned[field] = value or None
+
+    if "year_level" in data:
+        year = data["year_level"]
+
+        if year is not None:
+            if type(year) is not int or not 1 <= year <= 6:
+                return jsonify({
+                    "error": "Year level must be between 1 and 6"
+                }), 400
+
+        cleaned["year_level"] = year
+
+    connection = get_db_connection()
+
+    try:
+        user_id = session["user_id"]
+
+        execute_query(connection, """
+            INSERT INTO student_profiles (user_id)
+            VALUES (?)
+            ON CONFLICT (user_id) DO NOTHING
+        """, (user_id,))
+
+        fields = list(cleaned.keys())
+
+        assignments = ", ".join(
+            field + " = ?" for field in fields
+        )
+
+        query = (
+            "UPDATE student_profiles SET "
+            + assignments
+            + ", updated_at = CURRENT_TIMESTAMP "
+            + "WHERE user_id = ?"
+        )
+
+        values = [cleaned[field] for field in fields]
+        values.append(user_id)
+
+        execute_query(connection, query, tuple(values))
+
+        profile = read_student_profile(connection, user_id)
+
+        if profile is None:
+            connection.rollback()
+            return jsonify({
+                "error": "Student account not found"
+            }), 404
+
+        result = serialize_row(profile)
+        result["is_verified"] = bool(result["is_verified"])
+
+        connection.commit()
+
+        return jsonify({
+            "message": "Student profile saved successfully",
+            "profile": result
+        }), 200
+
+    except INTEGRITY_ERRORS:
+        connection.rollback()
+
+        return jsonify({
+            "error": "Profile conflicts with an existing record"
+        }), 409
+
+    except DATABASE_ERRORS:
+        connection.rollback()
+
+        return jsonify({
+            "error": "Unable to save student profile"
+        }), 500
+
+    finally:
+        connection.close()
+
+
+
+# =====================================================
+# API 27: COMPANY VIEW APPLICANT STUDENT PROFILE
+# =====================================================
+
+@app.route(
+    "/api/company/applications/<int:application_id>/student-profile",
+    methods=["GET"]
+)
+@role_required("company")
+def get_applicant_student_profile(application_id):
+    connection = get_db_connection()
+
+    try:
+        company = get_company(connection)
+
+        if company is None:
+            return jsonify({
+                "error": "Company profile not found"
+            }), 404
+
+        if not company["is_approved"]:
+            return jsonify({
+                "error": "Company approval is required"
+            }), 403
+
+        profile = execute_query(connection, """
+            SELECT
+                a.id AS application_id,
+                a.status AS application_status,
+                u.full_name,
+                u.email,
+                u.is_verified,
+                o.title AS opportunity_title,
+                p.college,
+                p.degree_program,
+                p.year_level,
+                p.bio,
+                p.skills,
+                p.qualifications,
+                p.updated_at
+            FROM applications a
+            JOIN opportunities o
+                ON a.opportunity_id = o.id
+            JOIN users u
+                ON a.student_id = u.id
+            LEFT JOIN student_profiles p
+                ON p.user_id = u.id
+            WHERE a.id = ?
+              AND o.company_id = ?
+              AND u.role = 'student'
+        """, (
+            application_id,
+            company["id"]
+        )).fetchone()
+
+        if profile is None:
+            return jsonify({
+                "error": "Application not found"
+            }), 404
+
+        result = serialize_row(profile)
+        result["is_verified"] = bool(result["is_verified"])
+
+        return jsonify({
+            "profile": result
+        }), 200
+
+    finally:
+        connection.close()
+
+
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)

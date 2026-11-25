@@ -283,6 +283,7 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="css/student-profile.css">
 </head>
 
 <body>
@@ -293,6 +294,7 @@
         <nav class="dashboard-links">
             <a href="index.html">Home</a>
             <a href="student-dashboard.html">Dashboard</a>
+            <a href="#student-profile-section" id="profile-nav-link">My Profile</a>
 
             <button id="logout-btn" class="logout-btn">
                 Logout
@@ -345,6 +347,157 @@
                     Loading your applications...
                 </p>
             </div>
+        </section>
+
+
+        <!-- STUDENT PROFILE MANAGEMENT -->
+        <section class="dashboard-section profile-section"
+                 id="student-profile-section">
+
+            <div class="profile-heading">
+                <h2>My Profile</h2>
+                <p>Manage your academic and professional information.</p>
+            </div>
+
+            <div class="profile-identity">
+                <div class="profile-avatar" aria-hidden="true">
+                    <span id="profile-initial">S</span>
+                </div>
+
+                <div>
+                    <h3 id="profile-full-name">Loading...</h3>
+                    <p id="profile-email"></p>
+                    <span id="profile-verification"
+                          class="profile-verification">
+                        Checking verification...
+                    </span>
+                </div>
+            </div>
+
+            <form id="student-profile-form">
+
+                <fieldset>
+                    <legend>Academic Information</legend>
+
+                    <div class="profile-grid">
+
+                        <div class="profile-field">
+                            <label for="profile-student-number">
+                                Student ID Number
+                            </label>
+                            <input type="text"
+                                   id="profile-student-number"
+                                   name="student_number"
+                                   maxlength="30"
+                                   placeholder="Enter your XU student ID">
+                        </div>
+
+                        <div class="profile-field">
+                            <label for="profile-college">College</label>
+                            <input type="text"
+                                   id="profile-college"
+                                   name="college"
+                                   maxlength="150"
+                                   placeholder="Enter your college">
+                        </div>
+
+                        <div class="profile-field">
+                            <label for="profile-degree">
+                                Degree Program
+                            </label>
+                            <input type="text"
+                                   id="profile-degree"
+                                   name="degree_program"
+                                   maxlength="150"
+                                   placeholder="e.g. BS Information Technology">
+                        </div>
+
+                        <div class="profile-field">
+                            <label for="profile-year-level">
+                                Year Level
+                            </label>
+                            <select id="profile-year-level"
+                                    name="year_level">
+                                <option value="">Select year level</option>
+                                <option value="1">1st Year</option>
+                                <option value="2">2nd Year</option>
+                                <option value="3">3rd Year</option>
+                                <option value="4">4th Year</option>
+                                <option value="5">5th Year</option>
+                                <option value="6">6th Year</option>
+                            </select>
+                        </div>
+
+                    </div>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Contact Information</legend>
+
+                    <div class="profile-field">
+                        <label for="profile-contact">
+                            Contact Number
+                        </label>
+                        <input type="tel"
+                               id="profile-contact"
+                               name="contact_number"
+                               maxlength="30"
+                               placeholder="09XXXXXXXXX">
+                    </div>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Professional Information</legend>
+
+                    <div class="profile-field">
+                        <label for="profile-bio">About Me</label>
+                        <textarea id="profile-bio"
+                                  name="bio"
+                                  maxlength="2000"
+                                  rows="4"
+                                  placeholder="Introduce yourself"></textarea>
+                    </div>
+
+                    <div class="profile-field">
+                        <label for="profile-skills">Skills</label>
+                        <textarea id="profile-skills"
+                                  name="skills"
+                                  maxlength="2000"
+                                  rows="4"
+                                  placeholder="List your technical and professional skills"></textarea>
+                    </div>
+
+                    <div class="profile-field">
+                        <label for="profile-qualifications">
+                            Qualifications
+                        </label>
+                        <textarea id="profile-qualifications"
+                                  name="qualifications"
+                                  maxlength="3000"
+                                  rows="4"
+                                  placeholder="Certifications, achievements and relevant experience"></textarea>
+                    </div>
+                </fieldset>
+
+                <p class="profile-privacy-note">
+                    Your student ID and contact number remain private.
+                    Approved companies may view relevant professional
+                    information when you apply to their opportunities.
+                </p>
+
+                <div id="profile-message"
+                     role="status"
+                     aria-live="polite"></div>
+
+                <button type="submit"
+                        id="profile-save-btn"
+                        class="profile-save-btn"
+                        disabled>
+                    Save Profile
+                </button>
+
+            </form>
+
         </section>
 
     </main>

@@ -331,6 +331,7 @@
             .modal { padding: 24px 20px; }
         }
     </style>
+    <link rel="stylesheet" href="css/applicant-profile.css">
 </head>
 
 <body>
@@ -555,6 +556,77 @@
             <span class="detail-label">Application Status</span>
             <span id="detail-status" class="detail-value"></span>
         </div>
+
+
+        <!-- EXTENDED APPLICANT PROFILE -->
+
+        <section class="applicant-profile-section">
+
+            <h3 class="applicant-profile-heading">
+                Student Profile
+            </h3>
+
+            <p id="applicant-profile-message"
+               class="applicant-profile-message"
+               role="status"
+               aria-live="polite">
+            </p>
+
+            <div id="applicant-profile-content" hidden>
+
+                <div class="applicant-verification-row">
+                    <span id="applicant-verification"
+                          class="applicant-verification">
+                        Checking verification...
+                    </span>
+                </div>
+
+                <h4>Academic Information</h4>
+
+                <div class="detail-row">
+                    <span class="detail-label">College</span>
+                    <span id="detail-college"
+                          class="detail-value"></span>
+                </div>
+
+                <div class="detail-row">
+                    <span class="detail-label">Degree Program</span>
+                    <span id="detail-degree"
+                          class="detail-value"></span>
+                </div>
+
+                <div class="detail-row">
+                    <span class="detail-label">Year Level</span>
+                    <span id="detail-year-level"
+                          class="detail-value"></span>
+                </div>
+
+                <h4>Professional Information</h4>
+
+                <div class="applicant-profile-field">
+                    <label>About Me</label>
+                    <p id="detail-bio"></p>
+                </div>
+
+                <div class="applicant-profile-field">
+                    <label>Skills</label>
+                    <p id="detail-skills"></p>
+                </div>
+
+                <div class="applicant-profile-field">
+                    <label>Qualifications</label>
+                    <p id="detail-qualifications"></p>
+                </div>
+
+                <p class="applicant-privacy-note">
+                    Only information relevant to this application
+                    is displayed. Private student information
+                    remains protected.
+                </p>
+
+            </div>
+
+        </section>
 
         <div class="modal-footer">
             <button id="close-applicant-modal" class="primary">
