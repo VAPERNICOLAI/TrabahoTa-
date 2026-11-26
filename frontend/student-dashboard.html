@@ -285,6 +285,8 @@
     </style>
     <link rel="stylesheet" href="css/student-profile.css">
     <link rel="stylesheet" href="css/student-resume.css">
+    <link rel="stylesheet" href="css/opportunity-brand.css">
+    <link rel="stylesheet" href="css/profile-images.css">
 </head>
 
 <body>
@@ -363,6 +365,10 @@
             <div class="profile-identity">
                 <div class="profile-avatar" aria-hidden="true">
                     <span id="profile-initial">S</span>
+                    <img id="student-profile-picture"
+                         alt=""
+                         hidden>
+
                 </div>
 
                 <div>
@@ -373,6 +379,58 @@
                         Checking verification...
                     </span>
                 </div>
+            </div>
+
+
+            <!-- STUDENT PROFILE PICTURE MANAGEMENT -->
+            <div class="picture-panel">
+                <h3>Profile Picture</h3>
+
+                <p class="picture-description">
+                    Personalize your student profile.
+                </p>
+
+                <input type="file"
+                       id="student-picture-input"
+                       accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                       hidden>
+
+                <div class="picture-actions">
+                    <button type="button"
+                            id="student-picture-choose"
+                            class="picture-btn">
+                        Choose Image
+                    </button>
+
+                    <button type="button"
+                            id="student-picture-save"
+                            class="picture-btn picture-primary"
+                            disabled>
+                        Save Picture
+                    </button>
+
+                    <button type="button"
+                            id="student-picture-remove"
+                            class="picture-btn picture-danger"
+                            disabled>
+                        Remove Picture
+                    </button>
+                </div>
+
+                <p id="student-picture-filename"
+                   class="picture-description">
+                    JPEG, PNG or WebP. Maximum 2 MiB.
+                </p>
+
+                <p class="picture-description">
+                    Your picture is visible to you and approved
+                    companies reviewing your non-withdrawn applications.
+                </p>
+
+                <p id="student-picture-message"
+                   class="picture-message"
+                   role="status"
+                   aria-live="polite"></p>
             </div>
 
             <form id="student-profile-form">
@@ -680,6 +738,7 @@
 
     <script src="js/student-dashboard.js"></script>
     <script src="js/student-resume.js"></script>
+    <script src="js/student-picture.js"></script>
 
 </body>
 </html>

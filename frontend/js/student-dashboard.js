@@ -561,6 +561,80 @@ document.addEventListener("DOMContentLoaded", async function () {
     // 7. AVAILABLE OPPORTUNITIES
     // =====================================================
 
+    function createOpportunityBrand(opportunity) {
+        const brand = document.createElement("div");
+        brand.className = "opportunity-brand";
+
+        const avatar = document.createElement("div");
+        avatar.className = "opportunity-company-avatar";
+
+        const companyName = String(
+            opportunity.company_name || "Company"
+        ).trim();
+
+        const initials = companyName
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map(word => word.charAt(0).toUpperCase())
+            .join("") || "CO";
+
+        const fallback = document.createElement("span");
+        fallback.textContent = initials;
+
+        avatar.appendChild(fallback);
+
+        const companyId = Number(opportunity.company_id);
+
+        if (
+            opportunity.has_logo &&
+            Number.isSafeInteger(companyId) &&
+            companyId > 0
+        ) {
+            const logo = document.createElement("img");
+
+            logo.alt = "";
+            logo.loading = "lazy";
+            logo.decoding = "async";
+            logo.hidden = true;
+
+            logo.addEventListener("load", () => {
+                fallback.hidden = true;
+                logo.hidden = false;
+            });
+
+            logo.addEventListener("error", () => {
+                logo.remove();
+                fallback.hidden = false;
+            });
+
+            avatar.appendChild(logo);
+
+            logo.src =
+                API_BASE + "/companies/" +
+                companyId + "/logo";
+        }
+
+        const details = document.createElement("div");
+        details.className = "opportunity-brand-details";
+
+        addText(
+            details,
+            "h3",
+            opportunity.title || "Untitled Opportunity"
+        );
+
+        addText(
+            details,
+            "p",
+            companyName
+        );
+
+        brand.append(avatar, details);
+
+        return brand;
+    }
+
     function renderOpportunities() {
         if (!opportunitiesList) return;
 
@@ -579,17 +653,8 @@ document.addEventListener("DOMContentLoaded", async function () {
             const card = document.createElement("div");
             card.className = "opportunity-card";
 
-            addText(
-                card,
-                "h3",
-                opportunity.title || "Untitled Opportunity"
-            );
-
-            addText(
-                card,
-                "p",
-                "Company: " +
-                (opportunity.company_name || "Not specified")
+            card.appendChild(
+                createOpportunityBrand(opportunity)
             );
 
             addText(

@@ -651,7 +651,172 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
 
 
+    let applicantPictureURL = null;
+    let applicantPictureController = null;
+
+    function resetApplicantPicture() {
+        if (applicantPictureController) {
+            applicantPictureController.abort();
+            applicantPictureController = null;
+        }
+
+        if (applicantPictureURL) {
+            URL.revokeObjectURL(applicantPictureURL);
+            applicantPictureURL = null;
+        }
+
+        const picture = $("applicant-picture");
+
+        picture.removeAttribute("src");
+        picture.hidden = true;
+
+        $("applicant-picture-initial").hidden = false;
+        $("applicant-picture-initial").textContent = "S";
+        $("applicant-picture-message").textContent = "";
+        $("applicant-picture-container").hidden = true;
+    }
+
+    async function loadApplicantPicture(
+        applicationId,
+        requestId,
+        fullName
+    ) {
+        if (!isCurrentApplicantRequest(requestId)) {
+            return;
+        }
+
+        resetApplicantPicture();
+
+        const container = $("applicant-picture-container");
+        const picture = $("applicant-picture");
+        const initial = $("applicant-picture-initial");
+        const message = $("applicant-picture-message");
+
+        initial.textContent = String(fullName || "Student")
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map(word => word.charAt(0).toUpperCase())
+            .join("") || "S";
+
+        container.hidden = false;
+
+        message.textContent =
+            "Loading profile picture...";
+
+        const controller = new AbortController();
+
+        applicantPictureController = controller;
+
+        try {
+            const response = await fetch(
+                COMPANY_API +
+                "/company/applications/" +
+                applicationId +
+                "/student-image",
+                {
+                    credentials: "include",
+                    cache: "no-store",
+                    signal: controller.signal
+                }
+            );
+
+            if (
+                controller.signal.aborted ||
+                !isCurrentApplicantRequest(requestId)
+            ) {
+                return;
+            }
+
+            if (response.status === 401) {
+                window.location.replace("login.html");
+                return;
+            }
+
+            if (response.status === 404) {
+                message.textContent =
+                    "No profile picture available.";
+                return;
+            }
+
+            if (response.status === 403) {
+                resetApplicantPicture();
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(
+                    "Unable to retrieve profile picture."
+                );
+            }
+
+            const blob = await response.blob();
+
+            if (
+                controller.signal.aborted ||
+                !isCurrentApplicantRequest(requestId)
+            ) {
+                return;
+            }
+
+            if (blob.type !== "image/webp") {
+                throw new Error(
+                    "Invalid profile picture response."
+                );
+            }
+
+            applicantPictureURL =
+                URL.createObjectURL(blob);
+
+            picture.src = applicantPictureURL;
+
+            await picture.decode();
+
+            if (
+                controller.signal.aborted ||
+                !isCurrentApplicantRequest(requestId)
+            ) {
+                return;
+            }
+
+            picture.hidden = false;
+            initial.hidden = true;
+            message.textContent = "";
+
+        } catch (error) {
+            if (
+                error.name === "AbortError" ||
+                controller.signal.aborted ||
+                !isCurrentApplicantRequest(requestId)
+            ) {
+                return;
+            }
+
+            if (applicantPictureURL) {
+                URL.revokeObjectURL(applicantPictureURL);
+                applicantPictureURL = null;
+            }
+
+            picture.removeAttribute("src");
+            picture.hidden = true;
+            initial.hidden = false;
+
+            message.textContent =
+                "Profile picture unavailable.";
+
+        } finally {
+            if (
+                applicantPictureController === controller
+            ) {
+                applicantPictureController = null;
+            }
+        }
+    }
+
+
     function resetApplicantProfile() {
+        resetApplicantPicture();
         resetApplicantResume();
 
         $("applicant-profile-content").hidden = true;
@@ -796,10 +961,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             profileMessage.textContent = "";
 
-            await loadApplicantResume(
-                application.id,
-                requestId
-            );
+            await Promise.all([
+                loadApplicantResume(
+                    application.id,
+                    requestId
+                ),
+                loadApplicantPicture(
+                    application.id,
+                    requestId,
+                    profile.full_name
+                )
+            ]);
 
         } catch (error) {
             if (

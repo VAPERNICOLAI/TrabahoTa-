@@ -375,7 +375,13 @@ def get_opportunities():
                 o.location,
                 o.deadline,
                 o.status,
-                c.company_name
+                c.company_name,
+                c.id AS company_id,
+                CASE WHEN EXISTS (
+                    SELECT 1
+                    FROM company_logos l
+                    WHERE l.company_id = c.id
+                ) THEN 1 ELSE 0 END AS has_logo
             FROM opportunities o
             JOIN companies c
                 ON o.company_id = c.id
@@ -2456,6 +2462,727 @@ def withdraw_application(application_id):
 
         return jsonify({
             "error": "Unable to withdraw application"
+        }), 500
+
+    finally:
+        connection.close()
+
+
+
+# =====================================================
+# PROFILE IMAGE MANAGEMENT
+# =====================================================
+
+from image_utils import (
+    process_image_upload,
+    ImageValidationError,
+    MAX_IMAGE_REQUEST_SIZE
+)
+
+
+@app.before_request
+def limit_profile_image_upload():
+
+    image_upload_paths = {
+        "/api/student/profile/image",
+        "/api/company/profile/logo"
+    }
+
+    if (
+        request.method == "PUT"
+        and request.path in image_upload_paths
+    ):
+        request.max_content_length = MAX_IMAGE_REQUEST_SIZE
+
+        if (
+            request.content_length is not None
+            and request.content_length > MAX_IMAGE_REQUEST_SIZE
+        ):
+            return jsonify({
+                "error": "Image upload request is too large."
+            }), 413
+
+
+@app.after_request
+def protect_profile_image_responses(response):
+
+    if (
+        request.path.startswith("/api/student/profile/image")
+        or request.path.startswith("/api/company/profile/logo")
+        or request.path.endswith("/student-image")
+        or request.path.startswith("/api/companies/")
+    ):
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+
+    return response
+
+
+def read_student_image_metadata(connection, user_id):
+
+    row = execute_query(connection, """
+        SELECT
+            mime_type,
+            file_size,
+            width,
+            height,
+            updated_at
+        FROM student_profile_images
+        WHERE user_id = ?
+    """, (user_id,)).fetchone()
+
+    return serialize_row(row) if row else None
+
+
+def create_image_response(row):
+
+    response = send_file(
+        BytesIO(bytes(row["image_data"])),
+        mimetype="image/webp",
+        as_attachment=False,
+        conditional=False,
+        etag=False,
+        max_age=0
+    )
+
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+
+    return response
+
+
+
+# =====================================================
+# API 35: GET STUDENT PROFILE IMAGE METADATA
+# =====================================================
+
+@app.route(
+    "/api/student/profile/image",
+    methods=["GET"]
+)
+@role_required("student")
+def get_student_profile_image():
+
+    connection = get_db_connection()
+
+    try:
+        image = read_student_image_metadata(
+            connection,
+            session["user_id"]
+        )
+
+        return jsonify({
+            "image": image
+        }), 200
+
+    except DATABASE_ERRORS:
+        return jsonify({
+            "error": "Unable to retrieve profile picture."
+        }), 500
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 36: UPLOAD OR REPLACE STUDENT PROFILE IMAGE
+# =====================================================
+
+@app.route(
+    "/api/student/profile/image",
+    methods=["PUT"]
+)
+@role_required("student")
+def upload_student_profile_image():
+
+    if request.mimetype != "multipart/form-data":
+        return jsonify({
+            "error": "Multipart image upload is required."
+        }), 415
+
+    uploads = request.files.getlist("image")
+
+    if len(uploads) != 1 or len(list(request.files.items(multi=True))) != 1:
+        return jsonify({
+            "error": "Exactly one image file is required."
+        }), 400
+
+    try:
+        image = process_image_upload(uploads[0])
+
+    except ImageValidationError as error:
+        return jsonify({
+            "error": str(error)
+        }), error.status_code
+
+    connection = get_db_connection()
+
+    try:
+        execute_query(connection, """
+            INSERT INTO student_profile_images (
+                user_id,
+                mime_type,
+                file_size,
+                image_data,
+                width,
+                height
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT (user_id)
+            DO UPDATE SET
+                mime_type = excluded.mime_type,
+                file_size = excluded.file_size,
+                image_data = excluded.image_data,
+                width = excluded.width,
+                height = excluded.height,
+                updated_at = CURRENT_TIMESTAMP
+        """, (
+            session["user_id"],
+            image["mime_type"],
+            image["file_size"],
+            image["image_data"],
+            image["width"],
+            image["height"]
+        ))
+
+        metadata = read_student_image_metadata(
+            connection,
+            session["user_id"]
+        )
+
+        connection.commit()
+
+        return jsonify({
+            "message": "Profile picture saved successfully.",
+            "image": metadata
+        }), 200
+
+    except DATABASE_ERRORS:
+        connection.rollback()
+
+        app.logger.exception(
+            "Student profile image upload failed"
+        )
+
+        return jsonify({
+            "error": "Unable to save profile picture."
+        }), 500
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 37: VIEW STUDENT PROFILE IMAGE
+# =====================================================
+
+@app.route(
+    "/api/student/profile/image/view",
+    methods=["GET"]
+)
+@role_required("student")
+def view_student_profile_image():
+
+    connection = get_db_connection()
+
+    try:
+        image = execute_query(connection, """
+            SELECT image_data
+            FROM student_profile_images
+            WHERE user_id = ?
+        """, (session["user_id"],)).fetchone()
+
+        if image is None:
+            return jsonify({
+                "error": "Profile picture not found."
+            }), 404
+
+        return create_image_response(image)
+
+    except DATABASE_ERRORS:
+        return jsonify({
+            "error": "Unable to display profile picture."
+        }), 500
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 38: DELETE STUDENT PROFILE IMAGE
+# =====================================================
+
+@app.route(
+    "/api/student/profile/image",
+    methods=["DELETE"]
+)
+@role_required("student")
+def delete_student_profile_image():
+
+    connection = get_db_connection()
+
+    try:
+        cursor = execute_query(connection, """
+            DELETE FROM student_profile_images
+            WHERE user_id = ?
+        """, (session["user_id"],))
+
+        if cursor.rowcount != 1:
+            connection.rollback()
+
+            return jsonify({
+                "error": "Profile picture not found."
+            }), 404
+
+        connection.commit()
+
+        return jsonify({
+            "message": "Profile picture removed successfully."
+        }), 200
+
+    except DATABASE_ERRORS:
+        connection.rollback()
+
+        return jsonify({
+            "error": "Unable to remove profile picture."
+        }), 500
+
+    finally:
+        connection.close()
+
+
+
+# =====================================================
+# API 39: GET AUTHENTICATED COMPANY PROFILE
+# =====================================================
+
+@app.route(
+    "/api/company/profile",
+    methods=["GET"]
+)
+@role_required("company")
+def get_company_profile():
+
+    connection = get_db_connection()
+
+    try:
+        company = execute_query(connection, """
+            SELECT
+                c.id,
+                c.company_name,
+                c.description,
+                c.is_approved,
+                u.full_name AS representative_name,
+                u.email,
+                u.created_at
+            FROM companies c
+            JOIN users u
+                ON c.user_id = u.id
+            WHERE c.user_id = ?
+              AND u.role = 'company'
+        """, (session["user_id"],)).fetchone()
+
+        if company is None:
+            return jsonify({
+                "error": "Company profile not found."
+            }), 404
+
+        profile = serialize_row(company)
+
+        profile["is_approved"] = bool(
+            profile["is_approved"]
+        )
+
+        logo = read_company_logo_metadata(
+            connection,
+            company["id"]
+        )
+
+        return jsonify({
+            "profile": profile,
+            "logo": logo
+        }), 200
+
+    except DATABASE_ERRORS:
+        return jsonify({
+            "error": "Unable to retrieve company profile."
+        }), 500
+
+    finally:
+        connection.close()
+
+
+def read_company_logo_metadata(connection, company_id):
+
+    row = execute_query(connection, """
+        SELECT
+            mime_type,
+            file_size,
+            width,
+            height,
+            updated_at
+        FROM company_logos
+        WHERE company_id = ?
+    """, (company_id,)).fetchone()
+
+    return serialize_row(row) if row else None
+
+
+
+# =====================================================
+# API 40: GET COMPANY LOGO METADATA
+# =====================================================
+
+@app.route(
+    "/api/company/profile/logo",
+    methods=["GET"]
+)
+@role_required("company")
+def get_company_logo():
+
+    connection = get_db_connection()
+
+    try:
+        company = get_company(connection)
+
+        if company is None:
+            return jsonify({
+                "error": "Company profile not found."
+            }), 404
+
+        return jsonify({
+            "logo": read_company_logo_metadata(
+                connection,
+                company["id"]
+            )
+        }), 200
+
+    except DATABASE_ERRORS:
+        return jsonify({
+            "error": "Unable to retrieve company logo."
+        }), 500
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 41: UPLOAD OR REPLACE COMPANY LOGO
+# =====================================================
+
+@app.route(
+    "/api/company/profile/logo",
+    methods=["PUT"]
+)
+@role_required("company")
+def upload_company_logo():
+
+    if request.mimetype != "multipart/form-data":
+        return jsonify({
+            "error": "Multipart image upload is required."
+        }), 415
+
+    uploads = request.files.getlist("image")
+
+    if (
+        len(uploads) != 1
+        or len(list(request.files.items(multi=True))) != 1
+    ):
+        return jsonify({
+            "error": "Exactly one image file is required."
+        }), 400
+
+    connection = get_db_connection()
+
+    try:
+        company = get_company(connection)
+
+        if company is None:
+            return jsonify({
+                "error": "Company profile not found."
+            }), 404
+
+        try:
+            image = process_image_upload(uploads[0])
+
+        except ImageValidationError as error:
+            return jsonify({
+                "error": str(error)
+            }), error.status_code
+
+        execute_query(connection, """
+            INSERT INTO company_logos (
+                company_id,
+                mime_type,
+                file_size,
+                image_data,
+                width,
+                height
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT (company_id)
+            DO UPDATE SET
+                mime_type = excluded.mime_type,
+                file_size = excluded.file_size,
+                image_data = excluded.image_data,
+                width = excluded.width,
+                height = excluded.height,
+                updated_at = CURRENT_TIMESTAMP
+        """, (
+            company["id"],
+            image["mime_type"],
+            image["file_size"],
+            image["image_data"],
+            image["width"],
+            image["height"]
+        ))
+
+        metadata = read_company_logo_metadata(
+            connection,
+            company["id"]
+        )
+
+        connection.commit()
+
+        return jsonify({
+            "message": "Company logo saved successfully.",
+            "logo": metadata
+        }), 200
+
+    except DATABASE_ERRORS:
+        connection.rollback()
+
+        app.logger.exception(
+            "Company logo upload failed"
+        )
+
+        return jsonify({
+            "error": "Unable to save company logo."
+        }), 500
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 42: VIEW OWN COMPANY LOGO
+# =====================================================
+
+@app.route(
+    "/api/company/profile/logo/view",
+    methods=["GET"]
+)
+@role_required("company")
+def view_company_logo():
+
+    connection = get_db_connection()
+
+    try:
+        company = get_company(connection)
+
+        if company is None:
+            return jsonify({
+                "error": "Company profile not found."
+            }), 404
+
+        logo = execute_query(connection, """
+            SELECT image_data
+            FROM company_logos
+            WHERE company_id = ?
+        """, (company["id"],)).fetchone()
+
+        if logo is None:
+            return jsonify({
+                "error": "Company logo not found."
+            }), 404
+
+        return create_image_response(logo)
+
+    except DATABASE_ERRORS:
+        return jsonify({
+            "error": "Unable to display company logo."
+        }), 500
+
+    finally:
+        connection.close()
+
+
+# =====================================================
+# API 43: DELETE COMPANY LOGO
+# =====================================================
+
+@app.route(
+    "/api/company/profile/logo",
+    methods=["DELETE"]
+)
+@role_required("company")
+def delete_company_logo():
+
+    connection = get_db_connection()
+
+    try:
+        company = get_company(connection)
+
+        if company is None:
+            return jsonify({
+                "error": "Company profile not found."
+            }), 404
+
+        cursor = execute_query(connection, """
+            DELETE FROM company_logos
+            WHERE company_id = ?
+        """, (company["id"],))
+
+        if cursor.rowcount != 1:
+            connection.rollback()
+
+            return jsonify({
+                "error": "Company logo not found."
+            }), 404
+
+        connection.commit()
+
+        return jsonify({
+            "message": "Company logo removed successfully."
+        }), 200
+
+    except DATABASE_ERRORS:
+        connection.rollback()
+
+        return jsonify({
+            "error": "Unable to remove company logo."
+        }), 500
+
+    finally:
+        connection.close()
+
+
+
+# =====================================================
+# API 44: PUBLIC COMPANY LOGO
+# =====================================================
+
+@app.route(
+    "/api/companies/<int:company_id>/logo",
+    methods=["GET"]
+)
+def get_public_company_logo(company_id):
+
+    connection = get_db_connection()
+
+    try:
+        logo = execute_query(connection, """
+            SELECT l.image_data
+            FROM company_logos l
+            JOIN companies c
+                ON l.company_id = c.id
+            WHERE c.id = ?
+              AND c.is_approved = 1
+              AND EXISTS (
+                  SELECT 1
+                  FROM opportunities o
+                  WHERE o.company_id = c.id
+                    AND o.status = 'open'
+                    AND (
+                        o.deadline IS NULL
+                        OR o.deadline >= DATE('now')
+                    )
+              )
+        """, (company_id,)).fetchone()
+
+        if logo is None:
+            return jsonify({
+                "error": "Company logo not available."
+            }), 404
+
+        return create_image_response(logo)
+
+    except DATABASE_ERRORS:
+        return jsonify({
+            "error": "Unable to retrieve company logo."
+        }), 500
+
+    finally:
+        connection.close()
+
+
+
+# =====================================================
+# API 45: AUTHORIZED APPLICANT PROFILE IMAGE
+# =====================================================
+
+@app.route(
+    "/api/company/applications/<int:application_id>/student-image",
+    methods=["GET"]
+)
+@role_required("company")
+def get_applicant_profile_image(application_id):
+
+    connection = get_db_connection()
+
+    try:
+        company = get_company(connection)
+
+        if company is None:
+            return jsonify({
+                "error": "Company profile not found."
+            }), 404
+
+        if not company["is_approved"]:
+            return jsonify({
+                "error": "Company approval is required."
+            }), 403
+
+        applicant = execute_query(connection, """
+            SELECT
+                a.status AS application_status,
+                c.is_approved,
+                i.image_data
+            FROM applications a
+            JOIN opportunities o
+                ON a.opportunity_id = o.id
+            JOIN companies c
+                ON o.company_id = c.id
+            JOIN users u
+                ON a.student_id = u.id
+            LEFT JOIN student_profile_images i
+                ON i.user_id = u.id
+            WHERE a.id = ?
+              AND c.id = ?
+              AND c.user_id = ?
+              AND u.role = 'student'
+        """, (
+            application_id,
+            company["id"],
+            session["user_id"]
+        )).fetchone()
+
+        if applicant is None:
+            return jsonify({
+                "error": "Application not found."
+            }), 404
+
+        if not applicant["is_approved"]:
+            return jsonify({
+                "error": "Company approval is required."
+            }), 403
+
+        if applicant["application_status"] == "withdrawn":
+            return jsonify({
+                "error": "Applicant picture access is restricted after withdrawal.",
+                "code": "APPLICATION_WITHDRAWN"
+            }), 403
+
+        if applicant["image_data"] is None:
+            return jsonify({
+                "error": "Applicant profile picture not found."
+            }), 404
+
+        return create_image_response(applicant)
+
+    except DATABASE_ERRORS:
+        return jsonify({
+            "error": "Unable to retrieve applicant profile picture."
         }), 500
 
     finally:

@@ -144,6 +144,56 @@ def init_db():
             )
         """)
 
+        # TABLE 7: STUDENT PROFILE IMAGES
+        connection.execute(f"""
+            CREATE TABLE IF NOT EXISTS student_profile_images (
+                user_id INTEGER PRIMARY KEY,
+                mime_type TEXT NOT NULL CHECK (
+                    mime_type = 'image/webp'
+                ),
+                file_size INTEGER NOT NULL CHECK (
+                    file_size BETWEEN 1 AND 2097152
+                ),
+                image_data {binary_type} NOT NULL CHECK (
+                    length(image_data) = file_size
+                ),
+                width INTEGER NOT NULL CHECK (
+                    width BETWEEN 1 AND 512
+                ),
+                height INTEGER NOT NULL CHECK (
+                    height BETWEEN 1 AND 512
+                ),
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+                    ON DELETE CASCADE
+            )
+        """)
+
+        # TABLE 8: COMPANY LOGOS
+        connection.execute(f"""
+            CREATE TABLE IF NOT EXISTS company_logos (
+                company_id INTEGER PRIMARY KEY,
+                mime_type TEXT NOT NULL CHECK (
+                    mime_type = 'image/webp'
+                ),
+                file_size INTEGER NOT NULL CHECK (
+                    file_size BETWEEN 1 AND 2097152
+                ),
+                image_data {binary_type} NOT NULL CHECK (
+                    length(image_data) = file_size
+                ),
+                width INTEGER NOT NULL CHECK (
+                    width BETWEEN 1 AND 512
+                ),
+                height INTEGER NOT NULL CHECK (
+                    height BETWEEN 1 AND 512
+                ),
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES companies(id)
+                    ON DELETE CASCADE
+            )
+        """)
+
         connection.commit()
 
     except Exception:

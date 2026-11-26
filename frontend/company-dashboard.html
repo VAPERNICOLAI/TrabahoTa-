@@ -349,6 +349,7 @@
     </style>
     <link rel="stylesheet" href="css/applicant-profile.css">
     <link rel="stylesheet" href="css/applicant-resume.css">
+    <link rel="stylesheet" href="css/profile-images.css">
 </head>
 
 <body>
@@ -393,6 +394,114 @@
     </section>
 
     <!-- MANAGE OPPORTUNITIES -->
+
+    <section class="panel" id="company-profile-panel">
+
+        <h2>Company Profile</h2>
+
+        <div class="company-profile-identity">
+
+            <div class="company-profile-avatar">
+                <span id="company-logo-initial">CO</span>
+                <img id="company-profile-logo"
+                     alt=""
+                     hidden>
+            </div>
+
+            <div class="company-profile-information">
+                <h3 id="company-profile-name">
+                    Loading...
+                </h3>
+
+                <p id="company-profile-email"></p>
+
+                <span id="company-profile-approval"
+                      class="company-approval-badge">
+                    Checking approval...
+                </span>
+            </div>
+
+        </div>
+
+        <div class="company-profile-details">
+
+            <div>
+                <strong>Representative</strong>
+                <p id="company-profile-representative">—</p>
+            </div>
+
+            <div>
+                <strong>Company Description</strong>
+                <p id="company-profile-description">—</p>
+            </div>
+
+            <div>
+                <strong>Member Since</strong>
+                <p id="company-profile-created">—</p>
+            </div>
+
+        </div>
+
+        <p id="company-profile-message"
+           class="picture-message"
+           role="status"></p>
+
+        <div class="picture-panel">
+
+            <h3>Company Logo</h3>
+
+            <p class="picture-description">
+                Personalize your company branding.
+            </p>
+
+            <input type="file"
+                   id="company-logo-input"
+                   accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                   hidden>
+
+            <div class="picture-actions">
+
+                <button type="button"
+                        id="company-logo-choose"
+                        class="picture-btn"
+                        disabled>
+                    Choose Logo
+                </button>
+
+                <button type="button"
+                        id="company-logo-save"
+                        class="picture-btn picture-primary"
+                        disabled>
+                    Save Logo
+                </button>
+
+                <button type="button"
+                        id="company-logo-remove"
+                        class="picture-btn picture-danger"
+                        disabled>
+                    Remove Logo
+                </button>
+
+            </div>
+
+            <p id="company-logo-filename"
+               class="picture-description">
+                JPEG, PNG or WebP. Maximum 2 MiB.
+            </p>
+
+            <p class="picture-description">
+                Your logo will appear on eligible opportunity
+                listings after company approval.
+            </p>
+
+            <p id="company-logo-message"
+               class="picture-message"
+               role="status"
+               aria-live="polite"></p>
+
+        </div>
+
+    </section>
 
     <section class="panel">
 
@@ -548,6 +657,28 @@
          aria-labelledby="applicant-modal-title">
 
         <h2 id="applicant-modal-title">Applicant Details</h2>
+
+        <div id="applicant-picture-container"
+             class="applicant-picture-container"
+             hidden>
+
+            <div class="applicant-picture-avatar">
+
+                <span id="applicant-picture-initial">S</span>
+
+                <img id="applicant-picture"
+                     alt="Student profile picture"
+                     hidden>
+
+            </div>
+
+            <p id="applicant-picture-message"
+               class="picture-description"
+               role="status">
+            </p>
+
+        </div>
+
 
         <div class="detail-row">
             <span class="detail-label">Applicant Name</span>
@@ -729,6 +860,7 @@
 </footer>
 
 <script src="js/company-dashboard.js"></script>
+<script src="js/company-profile.js"></script>
 
 </body>
 </html>
